@@ -18,11 +18,12 @@ class LSTM_model(Module):
             hidden_size=self.input_size,
             num_layers=self.num_layers,
             dropout=0.2,
-            batch_first=True
+            batch_first=True,
+            device=self.device
         )
-        self.fc = torch.nn.Sequential(Linear(self.sequence_length * self.input_size, 200),
-                                      Linear(200, 100),
-                                      Linear(100, self.n_classes),
+        self.fc = torch.nn.Sequential(Linear(self.sequence_length * self.input_size, 200, device=self.device),
+                                      Linear(200, 100, device=self.device),
+                                      Linear(100, self.n_classes, device=self.device),
                                       Softmax()
                                       )
 
@@ -35,8 +36,8 @@ class LSTM_model(Module):
         assert hasattr(args, "n_classes"), "Argument 'n_classes' not found!"
 
     def init_state(self):
-        return (torch.zeros(self.num_layers, self.batch_size, self.input_size, dtype=torch.double),
-                torch.zeros(self.num_layers, self.batch_size, self.input_size, dtype=torch.double))
+        return (torch.zeros(self.num_layers, self.batch_size, self.input_size, dtype=torch.double, device=self.device),
+                torch.zeros(self.num_layers, self.batch_size, self.input_size, dtype=torch.double, device=self.device))
 
     def forward(self, x, h, c):
         x, (h_n, c_n) = self.lstm(x.float())
