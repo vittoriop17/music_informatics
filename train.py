@@ -2,7 +2,7 @@ from torch.utils.data import DataLoader
 from utils.dataset import MusicDataset
 from models import lstm_model
 from torch import nn, optim
-import  torch
+import torch
 
 # TODO - think about a train_wrapper (automatically select the model to be trained)
 
@@ -12,9 +12,9 @@ def train_lstm(args):
     ds = MusicDataset(args=args)
     dataloader = DataLoader(ds, args.batch_size, shuffle=True)
     model = lstm_model.LSTM_model(args)
-
+    model = model.float()
     model.train()
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
     for epoch in range(args.epochs):
@@ -22,8 +22,7 @@ def train_lstm(args):
         for batch, (x, y_true) in enumerate(dataloader):
             optimizer.zero_grad()
             y_pred = model(x, state_h, state_c)
-            # todo - check transpose
-            loss = criterion(y_pred.transpose(1, 2), y_pred)
+            loss = criterion(y_pred, y_true.reshape(-1, args.n_classes))
             loss.backward()
             optimizer.step()
             print({'epoch': epoch, 'batch': batch, 'loss': loss.item() })

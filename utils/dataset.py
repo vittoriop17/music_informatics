@@ -3,12 +3,16 @@ from torch.utils.data import Dataset
 from pydub import AudioSegment
 import numpy as np
 from shutil import copyfile
+import torchvision.transforms as transforms
+import torch
+from sklearn.preprocessing import OneHotEncoder
 
 
 def read_audio(path):
     audio_seg = AudioSegment.from_wav(path)
     audio_samples = np.array(audio_seg.set_channels(1).get_array_of_samples(), dtype=np.float64)
     return audio_samples
+
 
 def create_mini_dataset(path_src, path_dest):
     for (root, dirs, files) in os.walk(path_src, topdown=True):
@@ -21,11 +25,13 @@ def create_mini_dataset(path_src, path_dest):
                 continue
             copyfile(os.path.join(root, file), os.path.join(path_dest, base_class, file))
 
+
 class MusicDataset(Dataset):
     def __init__(self, args):
         self.check_args(args)
         self.args = args
         self.audio_file_paths, self.classes = self.get_audio_paths_n_classes()
+        self.transform = transforms.Compose([transforms.ToTensor()])
 
     def __len__(self):
         return len(self.audio_file_paths)
@@ -36,7 +42,8 @@ class MusicDataset(Dataset):
             raise FileNotFoundError(f"File not found! Path: {audio_path}")
         audio_samples = read_audio(audio_path)
         audio_samples = self.add_padding(audio_samples)
-        return audio_samples.reshape(self.args.sequence_length, -1), self.classes[index]
+        audio_samples = (audio_samples - np.mean(audio_samples)) / np.std(audio_samples)
+        return torch.tensor(audio_samples.reshape(self.args.sequence_length, -1)), self.classes[index].toarray()
 
     def add_padding(self, audio_samples):
         mod = len(audio_samples) % self.args.sequence_length
@@ -71,7 +78,8 @@ class MusicDataset(Dataset):
                 file_names.append(os.path.join(root, file))
                 file_classes.append(base_class)
         print(f"Tot files: {tot_files}")
-        return file_names, file_classes
+        ohe_classes = OneHotEncoder().fit_transform(X=np.array(file_classes).reshape(-1, 1))
+        return file_names, ohe_classes
 
 
 if __name__=='__main__':

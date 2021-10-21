@@ -23,6 +23,8 @@ def upload_args():
     parser.add_argument("--train", required=False, type=bool)
     parser.add_argument("--video", required=False, type=str, help="Video path. Video used for evaluation of results")
     parser.add_argument("--config_file", required=False, type=str, help="Configuration file for additional parameters")
+    parser.add_argument("--dataset_path", required=False, type=str, help="Path dataset")
+    parser.add_argument("--n_classes", required=False, type=int, help="Number of distinct instruments (classes)")
     args = parser.parse_args()
     args = upload_args_from_json(args)
     print(args)
