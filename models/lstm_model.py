@@ -46,7 +46,7 @@ class LSTM_model(Module):
     def forward(self, x, h, c):
         x = x.unsqueeze(1)
         x_conv = self.conv1d(x.float())
-        x_conv = x_conv.reshape(self.batch_size, self.sequence_length, -1)
+        x_conv = x_conv.reshape(-1, self.sequence_length, self.input_size)
         x_lstm, (h_n, c_n) = self.lstm(x_conv.float())
         x_lstm = x_lstm.reshape(-1, self.sequence_length * self.input_size)
         y_pred = self.fc(x_lstm)
