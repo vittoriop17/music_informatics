@@ -27,6 +27,7 @@ def train_lstm(args):
     history = dict(train=[], val=[])
 
     for epoch in range(args.epochs):
+        model = model.train()
         state_h, state_c = model.init_state()
         epoch_train_losses = list()
         for x, y_true in train_dataloader:
