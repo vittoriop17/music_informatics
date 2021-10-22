@@ -1,10 +1,11 @@
 {
   "dataset_path":  "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\mini_dataset",
-  "epochs": 5,
-  "num_layers": 3,
+  "epochs": 10,
+  "num_layers": 2,
   "sequence_length": 20,
-  "lr": 1e-4,
+  "lr": 5e-4,
   "batch_size": 32,
   "input_size": 801,
+  "hidden_size": 200,
   "n_classes": 11
 }
