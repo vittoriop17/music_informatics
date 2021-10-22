@@ -43,7 +43,7 @@ class MusicDataset(Dataset):
         audio_samples = read_audio(audio_path)
         audio_samples = self.add_padding(audio_samples)
         audio_samples = (audio_samples - np.mean(audio_samples)) / np.std(audio_samples)
-        return torch.tensor(audio_samples.reshape(self.args.sequence_length, -1)), self.classes[index].toarray()
+        return torch.tensor(audio_samples), self.classes[index].toarray()
 
     def add_padding(self, audio_samples):
         mod = len(audio_samples) % self.args.sequence_length

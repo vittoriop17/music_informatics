@@ -44,7 +44,10 @@ class LSTM_model(Module):
                 torch.zeros(self.num_layers, self.batch_size, self.input_size, dtype=torch.double, device=self.device))
 
     def forward(self, x, h, c):
-        x_conv = self.conv1d(x)
+        x = x.unsqueeze(1)
+        x_conv = self.conv1d(x.float())
+        x_conv = x_conv.reshape(self.batch_size, self.sequence_length, -1)
+        print(f"x_conv after reshape: {x_conv.shape}. It should be (batch_size, sequence_length, input_size) ---> {self.batch_size, self.sequence_length, self.input_size}")
         x_lstm, (h_n, c_n) = self.lstm(x_conv.float())
         x_lstm = x_lstm.reshape(-1, self.sequence_length * self.input_size)
         y_pred = self.fc(x_lstm)
