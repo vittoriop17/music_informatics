@@ -1,7 +1,9 @@
 from torch.nn import Module
-from torch.nn.modules import LSTM, Linear, Softmax
+from torch.nn.modules import LSTM, Linear, Softmax, Conv1d
 import torch
 
+# TODO - this model works with input sequences of fixed length!
+# modify the Dataset code in order to handle input of different length (normal case: 3 seconds audio)
 
 class LSTM_model(Module):
     def __init__(self, args):
@@ -13,6 +15,8 @@ class LSTM_model(Module):
         self.sequence_length = args.sequence_length
         self.batch_size = args.batch_size
         self.n_classes = args.n_classes
+        # conv1d: such that it takes 22ms of audio per time
+        self.conv1d = Conv1d(in_channels=1, out_channels=1, kernel_size=970, dilation=120)
         self.lstm = LSTM(
             input_size=self.input_size,
             hidden_size=self.input_size,
@@ -40,7 +44,8 @@ class LSTM_model(Module):
                 torch.zeros(self.num_layers, self.batch_size, self.input_size, dtype=torch.double, device=self.device))
 
     def forward(self, x, h, c):
-        x, (h_n, c_n) = self.lstm(x.float())
-        x = x.reshape(-1, self.sequence_length * self.input_size)
-        y_pred = self.fc(x)
+        x_conv = self.conv1d(x)
+        x_lstm, (h_n, c_n) = self.lstm(x_conv.float())
+        x_lstm = x_lstm.reshape(-1, self.sequence_length * self.input_size)
+        y_pred = self.fc(x_lstm)
         return y_pred

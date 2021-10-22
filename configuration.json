@@ -5,6 +5,6 @@
   "sequence_length": 20,
   "lr": 1e-4,
   "batch_size": 32,
-  "input_size": 6615,
+  "input_size": 801,
   "n_classes": 11
 }
