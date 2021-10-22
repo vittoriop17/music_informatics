@@ -13,7 +13,7 @@ class LSTM_model(Module):
         self.num_layers = args.num_layers
         self.input_size = args.input_size
         # self.sequence_length = args.sequence_length
-        self.sequence_length = 16
+        self.sequence_length = args.sequence_length
         self.batch_size = args.batch_size
         self.n_classes = args.n_classes
         self.hidden_size = args.hidden_size
@@ -27,7 +27,7 @@ class LSTM_model(Module):
         out2 = self.check_conv1d_out_dim(out1, self.kernel_2, self.padding_2, self.stride_2, self.dilation_2)
         self.conv1d_2 = Conv1d(in_channels=4, out_channels=8, kernel_size=self.kernel_2, stride=self.stride_2, padding=self.padding_2, dilation=self.dilation_2)
 
-        self.kernel_3, self.stride_3, self.padding_3, self.dilation_3 = 20, 5, 17, 2
+        self.kernel_3, self.stride_3, self.padding_3, self.dilation_3 = 25, 25, 0, 1
         self.refinement_output_size = self.check_conv1d_out_dim(out2, self.kernel_3, self.padding_3, self.stride_3, self.dilation_3)
         self.conv1d_3 = Conv1d(in_channels=8, out_channels=self.sequence_length, kernel_size=self.kernel_3, stride=self.stride_3, dilation=self.dilation_3, padding=self.padding_3)
 
