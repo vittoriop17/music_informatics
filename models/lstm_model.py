@@ -36,12 +36,12 @@ class LSTM_model(Module):
             input_size=self.refinement_output_size,
             hidden_size=self.hidden_size,
             num_layers=self.num_layers,
-            dropout=0.2,
+            # dropout=0.2,
             batch_first=True,
             device=self.device
         )
-        self.fc = torch.nn.Sequential(Linear(self.sequence_length * (self.hidden_size + self.refinement_output_size), 200, device=self.device),
-                                      Linear(200, 100, device=self.device),
+        self.fc = torch.nn.Sequential(Linear(self.sequence_length * (self.hidden_size + self.refinement_output_size), 100, device=self.device),
+                                      # Linear(200, 100, device=self.device),
                                       Linear(100, self.n_classes, device=self.device),
                                       Softmax()
                                       )
