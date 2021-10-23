@@ -2,8 +2,15 @@ from torch.nn import Module
 from torch.nn.modules import LSTM, Linear, Softmax, Conv1d
 import torch
 
+
 # TODO - this model works with input sequences of fixed length!
 # modify the Dataset code in order to handle input of different length (normal case: 3 seconds audio)
+
+def check_conv1d_out_dim(in_size, kernel, padding, stride, dilation):
+    conv1d_out_size = (in_size + 2 * padding - dilation * (kernel - 1) - 1) / stride + 1
+    assert conv1d_out_size % 1 == 0, "Something went wront. The output of conv1d should have an integer dimension. Not float"
+    return int(conv1d_out_size)
+
 
 class LSTM_model(Module):
     def __init__(self, args):
@@ -20,16 +27,20 @@ class LSTM_model(Module):
         # in_channels = 2: we consider the audio with left and right channels (see utils.dataset.read_audio)
         # out_channels: represent the number of filters that we want to apply to our input
         self.kernel_1, self.stride_1, self.padding_1, self.dilation_1 = 8, 3, 6, 2
-        out1 = self.check_conv1d_out_dim(132300, self.kernel_1, self.padding_1, self.stride_1, self.dilation_1)
-        self.conv1d_1 = Conv1d(in_channels=2, out_channels=4, kernel_size=self.kernel_1, stride=self.stride_1, padding=self.padding_1, dilation=self.dilation_1)
+        out1 = check_conv1d_out_dim(132300, self.kernel_1, self.padding_1, self.stride_1, self.dilation_1)
+        self.conv1d_1 = Conv1d(in_channels=2, out_channels=4, kernel_size=self.kernel_1, stride=self.stride_1,
+                               padding=self.padding_1, dilation=self.dilation_1)
 
         self.kernel_2, self.stride_2, self.padding_2, self.dilation_2 = 12, 4, 4, 1
-        out2 = self.check_conv1d_out_dim(out1, self.kernel_2, self.padding_2, self.stride_2, self.dilation_2)
-        self.conv1d_2 = Conv1d(in_channels=4, out_channels=8, kernel_size=self.kernel_2, stride=self.stride_2, padding=self.padding_2, dilation=self.dilation_2)
+        out2 = check_conv1d_out_dim(out1, self.kernel_2, self.padding_2, self.stride_2, self.dilation_2)
+        self.conv1d_2 = Conv1d(in_channels=4, out_channels=8, kernel_size=self.kernel_2, stride=self.stride_2,
+                               padding=self.padding_2, dilation=self.dilation_2)
 
-        self.kernel_3, self.stride_3, self.padding_3, self.dilation_3 = 25, 5, 0, 2
-        self.refinement_output_size = self.check_conv1d_out_dim(out2, self.kernel_3, self.padding_3, self.stride_3, self.dilation_3)
-        self.conv1d_3 = Conv1d(in_channels=8, out_channels=self.sequence_length, kernel_size=self.kernel_3, stride=self.stride_3, dilation=self.dilation_3, padding=self.padding_3)
+        self.kernel_3, self.stride_3, self.padding_3, self.dilation_3 = 17, 5, 6, 1
+        self.refinement_output_size = check_conv1d_out_dim(out2, self.kernel_3, self.padding_3, self.stride_3,
+                                                                self.dilation_3)
+        self.conv1d_3 = Conv1d(in_channels=8, out_channels=self.sequence_length, kernel_size=self.kernel_3,
+                               stride=self.stride_3, dilation=self.dilation_3, padding=self.padding_3)
 
         self.refinement_network = torch.nn.Sequential(self.conv1d_1, self.conv1d_2, self.conv1d_3)
         self.lstm = LSTM(
@@ -45,12 +56,6 @@ class LSTM_model(Module):
                                       Linear(100, self.n_classes, device=self.device),
                                       Softmax()
                                       )
-
-
-    def check_conv1d_out_dim(self, in_size, kernel, padding, stride, dilation):
-        conv1d_out_size = (in_size + 2 * padding - dilation * (kernel - 1) - 1) / stride + 1
-        assert conv1d_out_size % 1 == 0, "Something went wront. The output of conv1d should have an integer dimension. Not float"
-        return int(conv1d_out_size)
 
     def check_args(self, args):
         assert hasattr(args, "num_layers"), "Argument 'num_layers' not found!"
