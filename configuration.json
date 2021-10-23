@@ -7,5 +7,6 @@
   "batch_size": 64,
   "input_size": 801,
   "hidden_size": 200,
-  "n_classes": 11
+  "n_classes": 11,
+  "train": "ae"
 }

@@ -4,7 +4,7 @@ import train
 
 def main():
     args = upload_args()
-    train.train_lstm(args)
+    train.train(args)
 
 if __name__=='__main__':
     main()
