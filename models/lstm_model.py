@@ -78,6 +78,6 @@ class LSTM_model(Module):
         # x_refined = x_refined.reshape(x_refined.shape[0], self.sequence_length, -1)
         x_lstm, (h_n, c_n) = self.lstm(x_refined.float())
         # x_extended = torch.cat((x_lstm, x_refined), dim=2)
-        x_flatten = torch.flatten(x_refined, start_dim=1).to(self.device)
+        x_flatten = torch.flatten(x_lstm, start_dim=1).to(self.device)
         y_pred = self.fc(x_flatten)
         return y_pred
