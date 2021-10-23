@@ -57,12 +57,18 @@ def train_ae(args):
         for x, _ in test_dataloader:
             x = x.to(args.device)
             x_pred = model(x.float())
-            loss = criterion(x_pred.float(), x.float())
-            test_losses.append(loss.item())
+            test_loss = criterion(x_pred.float(), x.float())
+            test_losses.append(test_loss.item())
         mean_test_loss = np.mean(test_losses)
         history['eval'].append(mean_test_loss)
         print(f"Epoch: {epoch}, \t train loss: {mean_train_loss}, \t test loss: {mean_test_loss}")
-
+        if epoch % 10 == 0:
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss
+            }, "./checkpoint.pt")
 
 def train_lstm(args):
     ds = MusicDataset(args=args)
