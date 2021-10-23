@@ -27,24 +27,25 @@ class LSTM_model(Module):
         out2 = self.check_conv1d_out_dim(out1, self.kernel_2, self.padding_2, self.stride_2, self.dilation_2)
         self.conv1d_2 = Conv1d(in_channels=4, out_channels=8, kernel_size=self.kernel_2, stride=self.stride_2, padding=self.padding_2, dilation=self.dilation_2)
 
-        self.kernel_3, self.stride_3, self.padding_3, self.dilation_3 = 25, 25, 0, 1
+        self.kernel_3, self.stride_3, self.padding_3, self.dilation_3 = 25, 5, 0, 2
         self.refinement_output_size = self.check_conv1d_out_dim(out2, self.kernel_3, self.padding_3, self.stride_3, self.dilation_3)
         self.conv1d_3 = Conv1d(in_channels=8, out_channels=self.sequence_length, kernel_size=self.kernel_3, stride=self.stride_3, dilation=self.dilation_3, padding=self.padding_3)
 
-        self.refinement_network = torch.nn.Sequential(self.conv1d_1, self.conv1d_2)
+        self.refinement_network = torch.nn.Sequential(self.conv1d_1, self.conv1d_2, self.conv1d_3)
         self.lstm = LSTM(
             input_size=self.refinement_output_size,
             hidden_size=self.hidden_size,
             num_layers=self.num_layers,
-            # dropout=0.2,
+            dropout=0.2,
             batch_first=True,
             device=self.device
         )
-        self.fc = torch.nn.Sequential(Linear(self.sequence_length * (self.hidden_size + self.refinement_output_size), 100, device=self.device),
-                                      # Linear(200, 100, device=self.device),
+        self.fc = torch.nn.Sequential(Linear(self.sequence_length * self.hidden_size, 200, device=self.device),
+                                      Linear(200, 100, device=self.device),
                                       Linear(100, self.n_classes, device=self.device),
                                       Softmax()
                                       )
+
 
     def check_conv1d_out_dim(self, in_size, kernel, padding, stride, dilation):
         conv1d_out_size = (in_size + 2 * padding - dilation * (kernel - 1) - 1) / stride + 1
@@ -67,13 +68,11 @@ class LSTM_model(Module):
     def forward(self, x, h, c):
         # print(f"x shape: {x.shape}")
         x_refined = self.refinement_network(x.float())
-        x_refined_2 = self.conv1d_3(x_refined.float())
-        # print(f"x_refined shape: {x_refined.shape}")
         # x_refined.shape[0]: keep the batch size unchanged. Can't use self.batch_size, since the last batch may have
         # size < self.batch_size
         # x_refined = x_refined.reshape(x_refined.shape[0], self.sequence_length, -1)
-        x_lstm, (h_n, c_n) = self.lstm(x_refined_2.float())
-        x_extended = torch.cat((x_lstm, x_refined_2), dim=2)
-        x_flatten = torch.flatten(x_extended, start_dim=1).to(self.device)
+        x_lstm, (h_n, c_n) = self.lstm(x_refined.float())
+        # x_extended = torch.cat((x_lstm, x_refined), dim=2)
+        x_flatten = torch.flatten(x_refined, start_dim=1).to(self.device)
         y_pred = self.fc(x_flatten)
         return y_pred
