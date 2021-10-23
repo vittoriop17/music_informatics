@@ -25,6 +25,7 @@ def train(args):
 
 
 def train_ae(args):
+    checkpoint_path = args.checkpoint_path if hasattr(args, "checkpoint_path") else "./checkpoint.pt"
     ds = MusicDataset(args=args)
     len_ds = len(ds)
     len_ds_train = int(0.7 * len_ds)
@@ -68,7 +69,7 @@ def train_ae(args):
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss
-            }, "./checkpoint.pt")
+            }, checkpoint_path)
 
 def train_lstm(args):
     ds = MusicDataset(args=args)
