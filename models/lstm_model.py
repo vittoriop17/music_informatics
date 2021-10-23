@@ -46,7 +46,6 @@ class LSTM_model(Module):
                                       Softmax()
                                       )
 
-
     def check_conv1d_out_dim(self, in_size, kernel, padding, stride, dilation):
         conv1d_out_size = (in_size + 2 * padding - dilation * (kernel - 1) - 1) / stride + 1
         assert conv1d_out_size % 1 == 0, "Something went wront. The output of conv1d should have an integer dimension. Not float"
