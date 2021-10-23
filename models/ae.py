@@ -46,7 +46,7 @@ class Decoder(Module):
         self.dec_block_2 = DecoderBlock(4*C, 5, args.device)
         self.dec_block_3 = DecoderBlock(2*C, 4, args.device)
         self.dec_block_4 = DecoderBlock(C, 2, args.device)
-        self.conv_2 = nn.Conv1d(in_channels=C//2, out_channels=1, kernel_size=3, padding=1326, device=args.device)
+        self.conv_2 = nn.Conv1d(in_channels=C//2, out_channels=2, kernel_size=3, padding=1326, device=args.device)
         self.net = nn.Sequential(self.conv_1,
                                  self.dec_block_1,
                                  self.dec_block_2,
