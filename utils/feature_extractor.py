@@ -17,7 +17,7 @@ def read_audio(audio_path):
     return samples_audio, sample_rate
 
 
-def read_label(audio_name, one_hot= True):
+def read_label(audio_name, one_hot= False):
     label = audio_name.split('[')[1].split(']')[0]
     label_dict = {
         'cel': 0,
@@ -55,68 +55,74 @@ def extract_features(audio_array, sample_rate):
     return [f1, f2, f3, f4, f6]
 
 
-def dataset_preprocessor(input_path, normalize, output_path = 'C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data'):
+def dataset_preprocessor(input_path, normalize_amplitude, normalize_features, class_set = None, output_path = 'C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data'):
     '''
 
     :param input_path: path of the audio files
     :param normalize: choose to normalize the audio segment
+
     :return:
     '''
 
-    # count the total number of file we have. Useful to pre-allocate
-    # the dataframe
-    num_files = sum([len(files) for r, d, files in os.walk(input_path)])
+    class_list = ['cel', 'cla', 'flu', 'gac', 'gel', 'org', 'pia', 'sax', 'tru', 'vio', 'voi']
+
+    # count the total number of file we have.
+    # Useful to pre-allocate the dataset array.
+    num_files = 0
+    if class_set is None:
+        num_files = sum([len(files) for r, d, files in os.walk(input_path)])
+        class_set = class_list
+    else:
+        for class_instr in class_set:
+            num_files += sum([len(files) for r, d, files in os.walk(os.path.join(input_path, class_instr))])
+
+
 
     instr_folder = os.listdir(input_path)
     # number of features: 25
-    # number of sample/each feature: 259
-    data = np.empty((num_files, 25, 130), dtype=np.float32)
-    data_labels = np.empty((num_files, 11), dtype= bool)        # num. classes = 11
+    # number of samples/each feature: len(audio_samples)/(window_size - hop_length) = 53
+    data = np.empty((num_files, 25, 53), dtype=np.float32)
+
+    #data_labels = np.empty((num_files, 11), dtype= bool)        # num. classes = 11
+    data_labels = np.empty(num_files, dtype= np.int32)
 
     index = 0
     for instr in instr_folder:
         instr_path = os.path.join(input_path, instr)
 
-        if instr == 'cel':
+        if instr in class_set:
             for audio_name in os.listdir(instr_path):
                 audio_path = os.path.join(instr_path, audio_name)   # retrieve the audio file path
                 samples_audio, sample_rate = read_audio(audio_path)
 
-                if normalize:
+                if normalize_amplitude:
                     min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
                     samples_audio = min_max_scaler.fit_transform(samples_audio.reshape(-1, 1)).reshape(-1, )
                 else:
                     pass
+
                 print('extracting features for audio: '+audio_name)
-                #audio_features = extract_features(samples_audio, sample_rate)
-                data[index, 0] = librosa.feature.spectral_centroid(samples_audio, sample_rate, hop_length= 5012//2)[0]
-                data[index, 1] = librosa.feature.spectral_bandwidth(samples_audio, sample_rate, hop_length= 5012//2)[0]
-                data[index, 2] = librosa.feature.spectral_rolloff(samples_audio, sample_rate, hop_length= 5012//2)[0]
-                data[index, 3] = librosa.feature.zero_crossing_rate(samples_audio, sample_rate, hop_length= 5012//2)[0]
-                # data[index, 0] = librosa.feature.rmse(audio_array, sample_rate)[0]
-                data[index, 4:24] = librosa.feature.mfcc(samples_audio, sample_rate,hop_length= 5012//2, n_mfcc=20)
+                data[index, 0] = librosa.feature.spectral_centroid(samples_audio, sr = sample_rate, hop_length= 5012//2)[0]
+                data[index, 1] = librosa.feature.spectral_bandwidth(samples_audio, sr = sample_rate, hop_length= 5012//2)[0]
+                data[index, 2] = librosa.feature.spectral_rolloff(samples_audio, sr = sample_rate, hop_length= 5012//2)[0]
+                data[index, 3] = librosa.feature.zero_crossing_rate(samples_audio, sr = sample_rate, hop_length= 5012//2)[0]
+                data[index, 4] = librosa.feature.rms(samples_audio, sr = sample_rate, hop_length= 5012//2)[0]
+                data[index, 5:25] = librosa.feature.mfcc(samples_audio, sr = sample_rate,hop_length= 5012//2, n_mfcc=20)
 
                 data_labels[index] = read_label(audio_name)         # save the label of the sample
+
                 index +=1
 
-    print('saving to .h5t file...')
-        # we use .h5 file since they can store 3-dim arrays (x,y,z)
-    out_file = h5py.File(os.path.join(output_path,'out_file.h5'), 'w')
-    out_file.create_dataset('trial_dataset', data= data)
-    out_file.close()
-    print('Done.')
 
-
-    print('saving to .npy file...')
-    np.save(os.path.join(output_path,'out_file_np.npy'), data)
+    print('saving data to .npy file...')
+    np.save(os.path.join(output_path,'out_dataset.npy'), data)
 
     print('Done.')
 
-
-
+    print('saving labels to .npy file...')
+    np.save(os.path.join(output_path, 'out_labels.npy'), data_labels)
 
     print('Done.')
-        #df = pd.DataFrame(data)
 
     return data
 
@@ -129,4 +135,4 @@ def dataset_preprocessor(input_path, normalize, output_path = 'C:\\Users\\Presti
 
 
 
-#df = dataset_preprocessor('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\IRMAS-TrainingData', False)
+dataset_preprocessor('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\IRMAS-TrainingData', False, False)
