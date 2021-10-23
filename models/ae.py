@@ -62,6 +62,7 @@ class Decoder(Module):
 class ResidualUnit(Module):
     def __init__(self, in_c, out_c, dilation, device):
         super(ResidualUnit, self).__init__()
+        self.device = device
         self.conv1d_1 = nn.Conv1d(in_channels=in_c, out_channels=out_c, kernel_size=7, dilation=dilation, device=device)
         self.conv1d_2 = nn.Conv1d(in_channels=out_c, out_channels=out_c, kernel_size=1, device=device)
 
@@ -69,7 +70,7 @@ class ResidualUnit(Module):
         x_1 = self.conv1d_1(x)
         x_2 = self.conv1d_2(x_1)
         shapes = x.shape[0], x.shape[1], x.shape[2] - x_2.shape[2]
-        return torch.cat((torch.zeros(shapes), x_2), dim=2) + x
+        return torch.cat((torch.zeros(shapes, device=self.device), x_2), dim=2) + x
 
 
 class EncoderBlock(Module):
