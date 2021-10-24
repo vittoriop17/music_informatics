@@ -4,7 +4,7 @@ import pydub
 import numpy as np
 import string, re
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from pydub import AudioSegment
 import h5py
 
@@ -55,7 +55,7 @@ def extract_features(audio_array, sample_rate):
     return [f1, f2, f3, f4, f6]
 
 
-def dataset_preprocessor(input_path, normalize_amplitude, normalize_features, class_set = None, output_path = 'C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data'):
+def dataset_preprocessor(input_path, normalize_amplitude, normalize_features = True, class_set = None, output_path = 'C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data'):
     '''
 
     :param input_path: path of the audio files
@@ -81,7 +81,7 @@ def dataset_preprocessor(input_path, normalize_amplitude, normalize_features, cl
     instr_folder = os.listdir(input_path)
     # number of features: 25
     # number of samples/each feature: len(audio_samples)/(window_size - hop_length) = 53
-    data = np.empty((num_files, 25, 53), dtype=np.float32)
+    data = np.empty((num_files, 25, 65), dtype=np.float32)
 
     #data_labels = np.empty((num_files, 11), dtype= bool)        # num. classes = 11
     data_labels = np.empty(num_files, dtype= np.int32)
@@ -96,31 +96,57 @@ def dataset_preprocessor(input_path, normalize_amplitude, normalize_features, cl
                 samples_audio, sample_rate = read_audio(audio_path)
 
                 if normalize_amplitude:
-                    min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
-                    samples_audio = min_max_scaler.fit_transform(samples_audio.reshape(-1, 1)).reshape(-1, )
+                    scaler = MinMaxScaler(feature_range=(-1, 1))
+                    samples_audio = scaler.fit_transform(samples_audio.reshape(-1, 1)).reshape(-1, )
                 else:
                     pass
+                # set here params for the feature extraction
+                features_args = {"y":samples_audio, "sr":sample_rate,"hop_length": 8192 // 4, "n_fft":8192}
+                if normalize_features:
+                    print('extracting normalized features for audio: '+audio_name)
+                    scaler = StandardScaler() # set here the scaler
 
-                print('extracting features for audio: '+audio_name)
-                data[index, 0] = librosa.feature.spectral_centroid(samples_audio, sr = sample_rate, hop_length= 5012//2)[0]
-                data[index, 1] = librosa.feature.spectral_bandwidth(samples_audio, sr = sample_rate, hop_length= 5012//2)[0]
-                data[index, 2] = librosa.feature.spectral_rolloff(samples_audio, sr = sample_rate, hop_length= 5012//2)[0]
-                data[index, 3] = librosa.feature.zero_crossing_rate(samples_audio, sr = sample_rate, hop_length= 5012//2)[0]
-                data[index, 4] = librosa.feature.rms(samples_audio, sr = sample_rate, hop_length= 5012//2)[0]
-                data[index, 5:25] = librosa.feature.mfcc(samples_audio, sr = sample_rate,hop_length= 5012//2, n_mfcc=20)
+                    data[index, 0] = \
+                        scaler.fit_transform(
+                            librosa.feature.spectral_centroid(**features_args)[0].reshape(-1,1)).reshape(-1,)
+                    data[index, 1] = \
+                        scaler.fit_transform(
+                            librosa.feature.spectral_bandwidth(**features_args)[0].reshape(-1,1)).reshape(-1,)
+                    data[index, 2] = \
+                        scaler.fit_transform(
+                            librosa.feature.spectral_rolloff(**features_args)[0].reshape(-1,1)).reshape(-1,)
+                    data[index, 3] = \
+                        scaler.fit_transform(
+                            librosa.feature.zero_crossing_rate(samples_audio, hop_length=5012 // 2)[0].reshape(-1,1)).reshape(-1,)
+                    data[index, 4] = \
+                        scaler.fit_transform(
+                            librosa.feature.rms(samples_audio, hop_length=5012 // 2)[0].reshape(-1,1)).reshape(-1,)
+                    data[index, 5:25] = \
+                        scaler.fit_transform(
+                            librosa.feature.mfcc(**features_args, n_mfcc=20))
+
+                else:
+                    print('extracting features for audio: '+audio_name)
+                    data[index, 0] = librosa.feature.spectral_centroid(**features_args)[0]
+                    data[index, 1] = librosa.feature.spectral_bandwidth(**features_args)[0]
+                    data[index, 2] = librosa.feature.spectral_rolloff(**features_args)[0]
+                    data[index, 3] = librosa.feature.zero_crossing_rate(samples_audio, hop_length= 8192//4)[0]
+                    data[index, 4] = librosa.feature.rms(samples_audio, hop_length= 8192//4)[0]
+                    data[index, 5:25] = librosa.feature.mfcc(**features_args, n_mfcc=20)
 
                 data_labels[index] = read_label(audio_name)         # save the label of the sample
 
                 index +=1
 
 
+
     print('saving data to .npy file...')
-    np.save(os.path.join(output_path,'out_dataset.npy'), data)
+    np.save(os.path.join(output_path,'out_dataset_norm_subset.npy'), data)
 
     print('Done.')
 
     print('saving labels to .npy file...')
-    np.save(os.path.join(output_path, 'out_labels.npy'), data_labels)
+    np.save(os.path.join(output_path, 'out_labels_norm_subset.npy'), data_labels)
 
     print('Done.')
 
@@ -135,4 +161,4 @@ def dataset_preprocessor(input_path, normalize_amplitude, normalize_features, cl
 
 
 
-dataset_preprocessor('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\IRMAS-TrainingData', False, False)
+dataset_preprocessor('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\IRMAS-TrainingData', True, False, class_set =['flu','org','voi'])
