@@ -159,7 +159,7 @@ class ClassificationNet(Module):
         self.end = Sequential(
             self.linear_3,
         )
-        self.softmax = Softmax(dim=args.n_classes)
+        self.softmax = Softmax()
 
     def forward(self, x: torch.Tensor):
         x = torch.flatten(x, start_dim=1)
