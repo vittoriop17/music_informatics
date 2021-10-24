@@ -5,6 +5,7 @@ from torch import nn, optim
 import torch
 import numpy as np
 
+
 # TODO - think about a train_wrapper (automatically select the model to be trained)
 def train(args):
     options = ["lstm", "ae", "svm"]
@@ -71,6 +72,7 @@ def train_ae(args):
                 'loss': loss
             }, checkpoint_path)
 
+
 def train_lstm(args):
     ds = MusicDataset(args=args)
     len_ds = len(ds)
@@ -78,7 +80,7 @@ def train_lstm(args):
     ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))
     train_dataloader = DataLoader(ds_train, args.batch_size, shuffle=True)
     test_dataloader = DataLoader(ds_test, args.batch_size, shuffle=True)
-    model = lstm_model.LSTM_model(args)
+    model = lstm_model.InstrumentClassificationNet(args)
     model = model.float()
     model = model.to(args.device)
     model.train()
@@ -89,13 +91,13 @@ def train_lstm(args):
 
     for epoch in range(args.epochs):
         model = model.train()
-        state_h, state_c = model.init_state()
+        # state_h, state_c = model.init_state()
         epoch_train_losses = list()
         for x, y_true in train_dataloader:
             x = x.to(args.device)
             y_true = y_true.to(args.device)
             optimizer.zero_grad()
-            y_pred = model(x, state_h, state_c)
+            y_pred = model(x)
             y_pred = y_pred.to(args.device)
             loss = criterion(y_pred, y_true.reshape(-1, args.n_classes))
             loss.backward()
@@ -110,7 +112,7 @@ def train_lstm(args):
             for x_test, y_true in test_dataloader:
                 x_test = x_test.to(args.device)
                 y_true = y_true.to(args.device)
-                y_pred = model(x_test, state_h, state_c)
+                y_pred = model(x_test)
                 y_pred = y_pred.to(args.device)
                 loss = criterion(y_pred, y_true.reshape(-1, args.n_classes))
                 # print({'epoch': epoch, 'batch_num': batch_num, 'loss': loss.item()})

@@ -8,5 +8,6 @@
   "input_size": 801,
   "hidden_size": 200,
   "n_classes": 11,
-  "train": "ae"
+  "train": "lstm",
+  "dropout": 0.2
 }

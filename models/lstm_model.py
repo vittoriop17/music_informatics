@@ -1,5 +1,5 @@
 from torch.nn import Module
-from torch.nn.modules import LSTM, Linear, Softmax, Conv1d
+from torch.nn.modules import LSTM, Linear, Softmax, Conv1d, MaxPool1d, Sequential, ReLU, BatchNorm1d
 import torch
 
 
@@ -10,6 +10,15 @@ def check_conv1d_out_dim(in_size, kernel, padding, stride, dilation):
     conv1d_out_size = (in_size + 2 * padding - dilation * (kernel - 1) - 1) / stride + 1
     assert conv1d_out_size % 1 == 0, "Something went wront. The output of conv1d should have an integer dimension. Not float"
     return int(conv1d_out_size)
+
+
+def find_stride(in_size, max_stride):
+    # N.B: in_size = original_in_size + 2*padding - dilation*(kernel_size-1) - 1
+    # see conv1d for explanation
+    for stride in range(2, max_stride+1):
+        if in_size % stride == 0:
+            return stride
+    return 1
 
 
 class LSTM_model(Module):
@@ -54,7 +63,7 @@ class LSTM_model(Module):
         self.fc = torch.nn.Sequential(Linear(self.sequence_length * self.hidden_size, 200, device=self.device),
                                       Linear(200, 100, device=self.device),
                                       Linear(100, self.n_classes, device=self.device),
-                                      Softmax()
+                                      Softmax(dim=self.n_classes)
                                       )
 
     def check_args(self, args):
@@ -80,4 +89,112 @@ class LSTM_model(Module):
         # x_extended = torch.cat((x_lstm, x_refined), dim=2)
         x_flatten = torch.flatten(x_lstm, start_dim=1).to(self.device)
         y_pred = self.fc(x_flatten)
+        return y_pred
+
+
+class PreProcessNet(Module):
+    def __init__(self, args):
+        super(PreProcessNet, self).__init__()
+        self.input_size = 132299
+        self.in_channels = 2
+        self.conv1_1 = Conv1d(in_channels=self.in_channels, out_channels=2*self.in_channels, kernel_size=3, dilation=1, device=args.device)
+        self.conv1_1_out_size = check_conv1d_out_dim(self.input_size, 3, 0, 1, 1)
+        self.conv1_2 = Conv1d(in_channels=2*self.in_channels, out_channels=8*self.in_channels, kernel_size=7, dilation=3, device=args.device)
+        self.conv1_2_out_size = check_conv1d_out_dim(self.conv1_1_out_size, 7, 0, 1, 3)
+        self.down_sampling_1 = DownSamplingBLock(args, channels=8*self.in_channels, dilation=1, stride=2)
+        self.down_sampling_1_out_size = check_conv1d_out_dim(self.conv1_2_out_size, 3, 0, 2, 1)
+        self.down_sampling_2 = DownSamplingBLock(args, channels=8*self.in_channels, dilation=3, stride=2)
+        self.down_sampling_2_out_size = check_conv1d_out_dim(self.down_sampling_1_out_size, 3, 0, 2, 3)
+        self.down_sampling_3 = DownSamplingBLock(args, channels=8*self.in_channels, dilation=9, stride=2)
+        self.down_sampling_3_out_size = check_conv1d_out_dim(self.down_sampling_2_out_size, 3, 0, 2, 9)
+        self.conv1_3 = Conv1d(in_channels=8*self.in_channels, out_channels=args.sequence_length, kernel_size=7, stride=4, dilation=2)
+        self.lstm_input_size = check_conv1d_out_dim(self.down_sampling_3_out_size, 7, 0, 4, 2)
+
+        self.down_sampling_net = Sequential(
+            self.conv1_1,
+            self.conv1_2,
+            self.down_sampling_1,
+            self.down_sampling_2,
+            self.down_sampling_3,
+            self.conv1_3
+        )
+        self.lstm = LSTM(
+            input_size=self.lstm_input_size,
+            hidden_size=args.hidden_size,
+            dropout=args.dropout,
+            device=args.device,
+            batch_first=True,
+            bidirectional=True,
+            num_layers=args.num_layers)
+        # todo - add attention block!!!
+
+    def forward(self, x):
+        x_down_sampled = self.down_sampling_net(x)
+        x_lstm, (h_lstm, c_lstm) = self.lstm(x_down_sampled)
+        return x_lstm
+
+
+class ClassificationNet(Module):
+    def __init__(self, args):
+        super(ClassificationNet, self).__init__()
+        self.linear_1 = Linear(in_features=2*args.sequence_length*args.hidden_size, out_features=250, device=args.device)
+        self.batch_1 = BatchNorm1d(num_features=250, device=args.device)
+        self.intro = Sequential(
+            self.linear_1,
+            self.batch_1
+        )
+        self.linear_2_left = Linear(in_features=250, out_features=100, device=args.device)
+        self.batch_2_left = BatchNorm1d(num_features=100, device=args.device)
+        self.left = Sequential(
+            self.linear_2_left,
+            self.batch_2_left
+        )
+        self.linear_2_right = Linear(in_features=250, out_features=100, device=args.device)
+        self.batch_2_right = BatchNorm1d(num_features=100, device=args.device)
+        self.right = Sequential(
+            self.linear_2_right,
+            self.batch_2_right
+        )
+        self.linear_3 = Linear(in_features=100, out_features=args.n_classes, device=args.device)
+        self.end = Sequential(
+            self.linear_3,
+        )
+        self.softmax = Softmax(dim=args.n_classes)
+
+    def forward(self, x: torch.Tensor):
+        x = torch.flatten(x, start_dim=1)
+        x_intro = self.intro(x)
+        x_left = self.left(x_intro)
+        x_right = self.right(x_intro)
+        x_end = self.end(x_left + x_right)
+        return self.softmax(x_end)
+
+
+class DownSamplingBLock(Module):
+    def __init__(self, args, channels, dilation, stride):
+        super(DownSamplingBLock, self).__init__()
+        self.kernel_size = 3
+        self.dilation = dilation
+        self.stride = stride
+        self.device = args.device
+        self.left = Sequential(MaxPool1d(kernel_size=self.kernel_size, dilation=self.dilation, stride=stride),
+                               ReLU())
+        self.right = Sequential(Conv1d(in_channels=channels, out_channels=channels, kernel_size=1, device=self.device),
+                                Conv1d(in_channels=channels, out_channels=channels, kernel_size=3, dilation=self.dilation, stride=stride, device=self.device))
+
+    def forward(self, x):
+        x_left = self.left(x)
+        x_right = self.right(x)
+        return x_left + x_right
+
+
+class InstrumentClassificationNet(Module):
+    def __init__(self, args):
+        super(InstrumentClassificationNet, self).__init__()
+        self.preprocessing_net = PreProcessNet(args)
+        self.classification_net = ClassificationNet(args)
+
+    def forward(self, x):
+        x_pre = self.preprocessing_net(x)
+        y_pred = self.classification_net(x_pre)
         return y_pred

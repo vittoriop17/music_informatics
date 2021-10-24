@@ -42,9 +42,9 @@ class MusicDataset(Dataset):
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"File not found! Path: {audio_path}")
         audio_samples = read_audio(audio_path)
-        audio_samples = self.add_padding(audio_samples)
+        # audio_samples = self.add_padding(audio_samples)
         audio_samples = (audio_samples - np.mean(audio_samples, axis=1, keepdims=True)) / np.std(audio_samples, axis=1, keepdims=True)
-        return torch.tensor(audio_samples), self.classes[index].toarray()
+        return torch.tensor(audio_samples, dtype=torch.float32), self.classes[index].toarray()
 
     def add_padding(self, audio_samples):
         mod = audio_samples.shape[1] % self.args.sequence_length
