@@ -1,14 +1,14 @@
 {
   "dataset_path":  "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\Dataset\\IRMAS-TrainingData",
   "epochs": 100,
-  "num_layers": 3,
+  "num_layers": 4,
   "sequence_length": 128,
   "lr": 1e-3,
   "batch_size": 64,
   "input_size": 801,
-  "hidden_size": 200,
+  "hidden_size": 128,
   "n_classes": 11,
   "train": "lstm",
-  "dropout": 0.2,
+  "dropout": 0.25,
   "load_model": "True"
 }

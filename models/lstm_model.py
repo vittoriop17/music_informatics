@@ -1,5 +1,5 @@
 from torch.nn import Module
-from torch.nn.modules import LSTM, Linear, Softmax, Conv1d, MaxPool1d, Sequential, ReLU, BatchNorm1d
+from torch.nn.modules import LSTM, Linear, Softmax, Conv1d, MaxPool1d, Sequential, ReLU, BatchNorm1d, Dropout
 import torch
 
 
@@ -145,27 +145,38 @@ class PreProcessNet(Module):
 class ClassificationNet(Module):
     def __init__(self, args, num_sequences):
         super(ClassificationNet, self).__init__()
+        self.relu = ReLU()
+        # dropout is set to 0 if args.dropout does not exist
+        self.dropout = Dropout(p=getattr(args, "dropout", 0))
         self.linear_1 = Linear(in_features=num_sequences * args.hidden_size, out_features=250, device=args.device)
         self.batch_1 = BatchNorm1d(num_features=250, device=args.device)
         self.intro = Sequential(
+            self.dropout,
             self.linear_1,
-            self.batch_1
+            self.batch_1,
+            self.relu,
+            self.dropout
         )
         self.linear_2_left = Linear(in_features=250, out_features=100, device=args.device)
         self.batch_2_left = BatchNorm1d(num_features=100, device=args.device)
         self.left = Sequential(
             self.linear_2_left,
-            self.batch_2_left
+            self.batch_2_left,
+            self.relu,
+            self.dropout
         )
         self.linear_2_right = Linear(in_features=250, out_features=100, device=args.device)
         self.batch_2_right = BatchNorm1d(num_features=100, device=args.device)
         self.right = Sequential(
             self.linear_2_right,
-            self.batch_2_right
+            self.batch_2_right,
+            self.relu,
+            self.dropout
         )
         self.linear_3 = Linear(in_features=100, out_features=args.n_classes, device=args.device)
         self.end = Sequential(
             self.linear_3,
+            self.dropout
         )
         self.softmax = Softmax()
 

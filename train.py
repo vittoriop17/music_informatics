@@ -35,6 +35,7 @@ def train(args):
     if choice == "svm":
         raise NotImplementedError("Implement train_svm")
     if choice == "cnn":
+        raise NotImplementedError("Implement CNN network")
         model = None
         ds = MusicDataset(args=args)
         ds_train, ds_test = stratified_split(ds, args, 0.7)
