@@ -99,10 +99,10 @@ class MusicDataset(Dataset):
 
 
 def stratified_split(ds: MusicDataset, args, train_size=0.7):
-    sss = StratifiedShuffleSplit(ds.classes, train_size=train_size, random_state=42)
+    sss = StratifiedShuffleSplit(1, train_size=train_size, random_state=42)
     ds_train = MusicDataset(args, skip=True)
     ds_test = MusicDataset(args, skip=True)
-    for train_idx, test_idx in sss:
+    for train_idx, test_idx in sss.split(ds.audio_file_paths, ds.classes):
         ds_train.audio_file_paths.append(ds.audio_file_paths[train_idx])
         ds_train.classes.append(ds.classes[train_idx])
         ds_test.audio_file_paths.append(ds.audio_file_paths[test_idx])
