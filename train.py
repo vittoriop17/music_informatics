@@ -46,11 +46,14 @@ def train(args):
 
 def load_existing_model(model, optimizer, checkpoint_path):
     try:
-        checkpoint = torch.load(checkpoint_path)
+        print(f"Trying to load existing model from checkpoint @ {checkpoint_path}...")
+        checkpoint = torch.load(checkpoint_path, map_location=torch.device("cpu"))
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        print("...existing model loaded")
     except Exception as e:
-        print(f"During loading the existing model, the following exception occured: {e}")
+        print("...loading failed")
+        print(f"During loading the existing model, the following exception occured: \n{e}")
         print("The execution will continue anyway")
 
 
