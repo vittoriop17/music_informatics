@@ -7,8 +7,6 @@ import torchvision.transforms as transforms
 import torch
 from sklearn.preprocessing import OneHotEncoder
 from scipy.io.wavfile import read
-import utils
-from torch.utils.data import random_split
 
 
 def check_classes(ds_train, ds_test):

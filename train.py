@@ -1,5 +1,5 @@
 from torch.utils.data import DataLoader, random_split
-from utils.dataset import MusicDataset, check_classes
+from utils.dataset import MusicDataset
 from models import lstm_model, ae
 from torch import nn, optim
 import torch
@@ -25,7 +25,6 @@ def train(args):
         len_ds = len(ds)
         len_ds_train = int(0.7 * len_ds)
         ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))
-        check_classes(ds_train, ds_test)
         criterion = nn.BCEWithLogitsLoss()
         print("\t TRAINING LSTM MODEL...")
         model, history = train_model(args, model, ds_train, ds_test, criterion)
