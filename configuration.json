@@ -1,5 +1,6 @@
 {
   "dataset_path":  "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\Dataset\\IRMAS-TrainingData",
+  "features_dataset_path": "C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data",
   "epochs": 100,
   "num_layers": 4,
   "sequence_length": 128,

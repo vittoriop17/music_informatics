@@ -39,21 +39,6 @@ def read_label(audio_name, one_hot= False):
         label = label_1h
     return label
 
-def extract_features_1v(audio_array, sample_rate):
-    f1 = librosa.feature.zero_crossing_rate(audio_array, frame_length=132299)
-
-    return [f1]
-
-def extract_features(audio_array, sample_rate):
-    f1 = librosa.feature.spectral_centroid(audio_array, sample_rate)[0]
-    f2 = librosa.feature.spectral_bandwidth(audio_array, sample_rate)[0]
-    f3 = librosa.feature.spectral_rolloff(audio_array, sample_rate)[0]
-    f4 = librosa.feature.zero_crossing_rate(audio_array, sample_rate)[0]
-    #f5 = librosa.feature.rmse(audio_array, sample_rate)[0]
-    f6 = librosa.feature.mfcc(audio_array, sample_rate, n_mfcc=20)
-
-    return [f1, f2, f3, f4, f6]
-
 
 def dataset_preprocessor(input_path, normalize_amplitude, normalize_features = True, class_set = None, output_path = 'C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data'):
     '''
@@ -141,16 +126,16 @@ def dataset_preprocessor(input_path, normalize_amplitude, normalize_features = T
 
 
     print('saving data to .npy file...')
-    np.save(os.path.join(output_path,'out_dataset_norm_subset.npy'), data)
+    np.save(os.path.join(output_path,'out_dataset.npy'), data)
 
     print('Done.')
 
     print('saving labels to .npy file...')
-    np.save(os.path.join(output_path, 'out_labels_norm_subset.npy'), data_labels)
+    np.save(os.path.join(output_path, 'out_labels.npy'), data_labels)
 
     print('Done.')
 
-    return data
+    return data, data_labels
 
 
 
@@ -161,4 +146,4 @@ def dataset_preprocessor(input_path, normalize_amplitude, normalize_features = T
 
 
 
-dataset_preprocessor('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\IRMAS-TrainingData', True, False, class_set =['flu','org','voi'])
+#dataset_preprocessor('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\IRMAS-TrainingData', True, False)

@@ -23,6 +23,7 @@ def upload_args(file_path=os.path.join("configuration.json")):
     parser.add_argument("--train", required=False, type=bool)
     parser.add_argument("--video", required=False, type=str, help="Video path. Video used for evaluation of results")
     parser.add_argument("--config_file", required=False, type=str, help="Configuration file for additional parameters")
+    parser.add_argument("--features_dataset_path", required=False, type=str, help="Path dataset used from the svm model")
     parser.add_argument("--dataset_path", required=False, type=str, help="Path dataset")
     parser.add_argument("--checkpoint_path", required=False, type=str, help="Checkpoint path: for saving model parameters")
     parser.add_argument("--n_classes", required=False, type=int, help="Number of distinct instruments (classes)")
