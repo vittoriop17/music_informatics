@@ -23,7 +23,6 @@ def train(args):
         model = lstm_model.InstrumentClassificationNet(args)
         ds = MusicDataset(args=args)
         ds_train, ds_test = stratified_split(ds, args, 0.7)
-        check_classes(ds_train, ds_test)
         # len_ds = len(ds)
         # len_ds_train = int(0.7 * len_ds)
         # ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))

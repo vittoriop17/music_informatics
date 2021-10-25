@@ -103,10 +103,10 @@ def stratified_split(ds: MusicDataset, args, train_size=0.7):
     ds_train = MusicDataset(args, skip=True)
     ds_test = MusicDataset(args, skip=True)
     for train_idx, test_idx in sss.split(ds.audio_file_paths, ds.nominal_classes):
-        ds_train.audio_file_paths.append(ds.audio_file_paths[train_idx])
-        ds_train.classes.append(ds.classes[train_idx, :])
-        ds_test.audio_file_paths.append(ds.audio_file_paths[test_idx])
-        ds_test.classes.append(ds.classes[test_idx, :])
+        ds_train.audio_file_paths = np.array(ds.audio_file_paths)[train_idx]
+        ds_train.classes = ds.classes[train_idx, :]
+        ds_test.audio_file_paths = np.array(ds.audio_file_paths)[test_idx]
+        ds_test.classes = ds.classes[test_idx, :]
     return ds_train, ds_test
 
 
