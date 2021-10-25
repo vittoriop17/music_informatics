@@ -9,10 +9,10 @@ from sklearn.metrics import accuracy_score, precision_score, f1_score
 
 
 stratified = True
-data = np.load('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data\\out_dataset.npy')
+data = np.load('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data\\out_dataset_spec.npy')
 flattened_data =np.array([data_matrix.flatten() for data_matrix in data])
 
-labels = np.load('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data\\out_labels.npy')
+labels = np.load('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data\\out_labels_spec.npy')
 
 if stratified:
     sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)

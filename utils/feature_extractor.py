@@ -40,7 +40,7 @@ def read_label(audio_name, one_hot= False):
     return label
 
 
-def dataset_preprocessor(input_path, normalize_amplitude, normalize_features = True, class_set = None, output_path = 'C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data'):
+def dataset_preprocessor(input_path, normalize_amplitude, spectrogram, normalize_features = False, class_set = None, output_path = 'C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data'):
     '''
 
     :param input_path: path of the audio files
@@ -66,7 +66,7 @@ def dataset_preprocessor(input_path, normalize_amplitude, normalize_features = T
     instr_folder = os.listdir(input_path)
     # number of features: 25
     # number of samples/each feature: len(audio_samples)/(window_size - hop_length) = 53
-    data = np.empty((num_files, 25, 65), dtype=np.float32)
+    data = np.empty((num_files, 128, 259), dtype=np.float32)
 
     #data_labels = np.empty((num_files, 11), dtype= bool)        # num. classes = 11
     data_labels = np.empty(num_files, dtype= np.int32)
@@ -87,37 +87,42 @@ def dataset_preprocessor(input_path, normalize_amplitude, normalize_features = T
                     pass
                 # set here params for the feature extraction
                 features_args = {"y":samples_audio, "sr":sample_rate,"hop_length": 8192 // 4, "n_fft":8192}
-                if normalize_features:
-                    print('extracting normalized features for audio: '+audio_name)
-                    scaler = StandardScaler() # set here the scaler
 
-                    data[index, 0] = \
-                        scaler.fit_transform(
-                            librosa.feature.spectral_centroid(**features_args)[0].reshape(-1,1)).reshape(-1,)
-                    data[index, 1] = \
-                        scaler.fit_transform(
-                            librosa.feature.spectral_bandwidth(**features_args)[0].reshape(-1,1)).reshape(-1,)
-                    data[index, 2] = \
-                        scaler.fit_transform(
-                            librosa.feature.spectral_rolloff(**features_args)[0].reshape(-1,1)).reshape(-1,)
-                    data[index, 3] = \
-                        scaler.fit_transform(
-                            librosa.feature.zero_crossing_rate(samples_audio, hop_length=5012 // 2)[0].reshape(-1,1)).reshape(-1,)
-                    data[index, 4] = \
-                        scaler.fit_transform(
-                            librosa.feature.rms(samples_audio, hop_length=5012 // 2)[0].reshape(-1,1)).reshape(-1,)
-                    data[index, 5:25] = \
-                        scaler.fit_transform(
-                            librosa.feature.mfcc(**features_args, n_mfcc=20))
-
+                if spectrogram:
+                    print('extracting mel spectrogram for audio: ' + audio_name)
+                    data[index] = librosa.amplitude_to_db(librosa.feature.melspectrogram(samples_audio, sample_rate))
                 else:
-                    print('extracting features for audio: '+audio_name)
-                    data[index, 0] = librosa.feature.spectral_centroid(**features_args)[0]
-                    data[index, 1] = librosa.feature.spectral_bandwidth(**features_args)[0]
-                    data[index, 2] = librosa.feature.spectral_rolloff(**features_args)[0]
-                    data[index, 3] = librosa.feature.zero_crossing_rate(samples_audio, hop_length= 8192//4)[0]
-                    data[index, 4] = librosa.feature.rms(samples_audio, hop_length= 8192//4)[0]
-                    data[index, 5:25] = librosa.feature.mfcc(**features_args, n_mfcc=20)
+                    if normalize_features:
+                        print('extracting normalized features for audio: '+audio_name)
+                        scaler = StandardScaler() # set here the scaler
+
+                        data[index, 0] = \
+                            scaler.fit_transform(
+                                librosa.feature.spectral_centroid(**features_args)[0].reshape(-1,1)).reshape(-1,)
+                        data[index, 1] = \
+                            scaler.fit_transform(
+                                librosa.feature.spectral_bandwidth(**features_args)[0].reshape(-1,1)).reshape(-1,)
+                        data[index, 2] = \
+                            scaler.fit_transform(
+                                librosa.feature.spectral_rolloff(**features_args)[0].reshape(-1,1)).reshape(-1,)
+                        data[index, 3] = \
+                            scaler.fit_transform(
+                                librosa.feature.zero_crossing_rate(samples_audio, hop_length=5012 // 2)[0].reshape(-1,1)).reshape(-1,)
+                        data[index, 4] = \
+                            scaler.fit_transform(
+                                librosa.feature.rms(samples_audio, hop_length=5012 // 2)[0].reshape(-1,1)).reshape(-1,)
+                        data[index, 5:25] = \
+                            scaler.fit_transform(
+                                librosa.feature.mfcc(**features_args, n_mfcc=20))
+
+                    else:
+                        print('extracting features for audio: '+audio_name)
+                        data[index, 0] = librosa.feature.spectral_centroid(**features_args)[0]
+                        data[index, 1] = librosa.feature.spectral_bandwidth(**features_args)[0]
+                        data[index, 2] = librosa.feature.spectral_rolloff(**features_args)[0]
+                        data[index, 3] = librosa.feature.zero_crossing_rate(samples_audio, hop_length= 8192//4)[0]
+                        data[index, 4] = librosa.feature.rms(samples_audio, hop_length= 8192//4)[0]
+                        data[index, 5:25] = librosa.feature.mfcc(**features_args, n_mfcc=20)
 
                 data_labels[index] = read_label(audio_name)         # save the label of the sample
 
@@ -126,12 +131,12 @@ def dataset_preprocessor(input_path, normalize_amplitude, normalize_features = T
 
 
     print('saving data to .npy file...')
-    np.save(os.path.join(output_path,'out_dataset.npy'), data)
+    np.save(os.path.join(output_path,'out_dataset_spec.npy'), data)
 
     print('Done.')
 
     print('saving labels to .npy file...')
-    np.save(os.path.join(output_path, 'out_labels.npy'), data_labels)
+    np.save(os.path.join(output_path, 'out_labels_spec.npy'), data_labels)
 
     print('Done.')
 
@@ -146,4 +151,4 @@ def dataset_preprocessor(input_path, normalize_amplitude, normalize_features = T
 
 
 
-#dataset_preprocessor('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\IRMAS-TrainingData', True, False)
+dataset_preprocessor('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\IRMAS-TrainingData', True, True)
