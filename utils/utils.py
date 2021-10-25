@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 
-def upload_args():
+def upload_args(file_path=os.path.join("configuration.json")):
     """
     The function loads ALL the parameters passed through COMMAND LINE and also those reported in the configuration file.
     The configuration file is a json.
@@ -29,7 +29,7 @@ def upload_args():
     parser.add_argument("--load_model", required=False, type=bool,
                         help="Load existing model, if present. The checkpoint path is given through 'checkpoint_path' argument")
     args = parser.parse_args()
-    args = upload_args_from_json(args)
+    args = upload_args_from_json(args, file_path)
     print(args)
     return args
 

@@ -7,7 +7,19 @@ import torchvision.transforms as transforms
 import torch
 from sklearn.preprocessing import OneHotEncoder
 from scipy.io.wavfile import read
+import utils
+from torch.utils.data import random_split
 
+
+def check_classes(ds_train, ds_test):
+    cont_occ_train = np.zeros((1, 11))
+    cont_occ_test = np.zeros((1, 11))
+    for input_data, input_class in ds_train:
+        cont_occ_train += input_class
+    for _, input_class in ds_test:
+        cont_occ_test += input_class
+    print(cont_occ_train)
+    print(cont_occ_test)
 
 def read_audio(path):
     rate, audio_array = read(path)
@@ -85,23 +97,23 @@ class MusicDataset(Dataset):
 
 if __name__=='__main__':
     print()
-    main_dir = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\dataset\\IRMAS-TrainingData"
-    dest_dir = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\mini_dataset"
-
-    # create_mini_dataset(main_dir, dest_dir)
-    cont = 0
-    tot_files = 0
-    classes = list()
-    file_classes = list()
-    for (root, dirs, files) in os.walk(main_dir, topdown=True):
-        base_class = os.path.basename(root)
-        for file in files:
-            if not file.endswith(".wav"):
-                continue
-            samples = read_audio(os.path.join(root, file))
-            tot_files += 1
-            file_classes.append(base_class)
-        classes.append(base_class)
-    print(f"Tot files: {tot_files}")
-    print(f"Number of classes: {len(classes)}")
-    print(f"Number of audio x class: {np.unique(file_classes, return_counts=True)}")
+    # main_dir = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\dataset\\IRMAS-TrainingData"
+    # dest_dir = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\mini_dataset"
+    #
+    # # create_mini_dataset(main_dir, dest_dir)
+    # cont = 0
+    # tot_files = 0
+    # classes = list()
+    # file_classes = list()
+    # for (root, dirs, files) in os.walk(main_dir, topdown=True):
+    #     base_class = os.path.basename(root)
+    #     for file in files:
+    #         if not file.endswith(".wav"):
+    #             continue
+    #         samples = read_audio(os.path.join(root, file))
+    #         tot_files += 1
+    #         file_classes.append(base_class)
+    #     classes.append(base_class)
+    # print(f"Tot files: {tot_files}")
+    # print(f"Number of classes: {len(classes)}")
+    # print(f"Number of audio x class: {np.unique(file_classes, return_counts=True)}")

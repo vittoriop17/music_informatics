@@ -1,5 +1,5 @@
 from torch.utils.data import DataLoader, random_split
-from utils.dataset import MusicDataset
+from utils.dataset import MusicDataset, check_classes
 from models import lstm_model, ae
 from torch import nn, optim
 import torch
@@ -25,6 +25,7 @@ def train(args):
         len_ds = len(ds)
         len_ds_train = int(0.7 * len_ds)
         ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))
+        check_classes(ds_train, ds_test)
         criterion = nn.BCEWithLogitsLoss()
         print("\t TRAINING LSTM MODEL...")
         model, history = train_model(args, model, ds_train, ds_test, criterion)
@@ -58,7 +59,7 @@ def load_existing_model(model, optimizer, checkpoint_path):
 
 
 def train_model(args, model, ds_train, ds_test, criterion):
-    checkpoint_path = args.checkpoint_path if getattr(args, "checkpoint_path") is not None else str("./checkpoint.pt")
+    checkpoint_path = args.checkpoint_path if getattr(args, "checkpoint_path", None) is not None else str("./checkpoint.pt")
     train_dataloader = DataLoader(ds_train, args.batch_size, shuffle=True)
     test_dataloader = DataLoader(ds_test, args.batch_size, shuffle=True)
     model = model.to(args.device)
@@ -82,7 +83,7 @@ def train_model(args, model, ds_train, ds_test, criterion):
             optimizer.step()
             epoch_train_losses.append(loss.item())
             y_true = torch.squeeze(y_true, dim=1)
-            epoch_train_f1_scores.append((f1_score(y_true=np.argmax(y_true.detach().cpu().numpy(), axis=-1), y_pred=np.argmax(y_pred.detach().cpu().numpy(), axis=-1), average="macro")))
+            epoch_train_f1_scores.append((f1_score(y_true=np.argmax(y_true.detach().cpu().numpy(), axis=-1), y_pred=np.argmax(y_pred.detach().cpu().numpy(), axis=-1), average="micro")))
         mean_train_loss = np.mean(epoch_train_losses)
         mean_train_f1_score = np.mean(epoch_train_f1_scores)
         history['train'].append((mean_train_loss))
@@ -99,7 +100,7 @@ def train_model(args, model, ds_train, ds_test, criterion):
                 test_loss = criterion(y_pred, y_true.reshape(-1, args.n_classes))
                 # print({'epoch': epoch, 'batch_num': batch_num, 'loss': loss.item()})
                 epoch_test_losses.append(test_loss.item())
-                epoch_test_f1_scores.append(f1_score(y_true=np.argmax(y_true.detach().cpu().numpy(), axis=-1), y_pred=np.argmax(y_pred.detach().cpu().numpy(), axis=-1), average="macro"))
+                epoch_test_f1_scores.append(f1_score(y_true=np.argmax(y_true.detach().cpu().numpy(), axis=-1), y_pred=np.argmax(y_pred.detach().cpu().numpy(), axis=-1), average="micro"))
             mean_test_loss = np.mean(epoch_test_losses)
             mean_test_f1_score = np.mean(epoch_test_f1_scores)
             history['eval'].append(mean_test_loss)
