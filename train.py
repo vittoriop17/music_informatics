@@ -44,6 +44,16 @@ def train(args):
         model, history = train_model(args, model, ds_train, ds_test, criterion)
 
 
+def load_existing_model(model, optimizer, checkpoint_path):
+    try:
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    except Exception as e:
+        print(f"During loading the existing model, the following exception occured: {e}")
+        print("The execution will continue anyway")
+
+
 def train_model(args, model, ds_train, ds_test, criterion):
     checkpoint_path = args.checkpoint_path if getattr(args, "checkpoint_path") is not None else str("./checkpoint.pt")
     train_dataloader = DataLoader(ds_train, args.batch_size, shuffle=True)
@@ -52,7 +62,8 @@ def train_model(args, model, ds_train, ds_test, criterion):
     model = model.float()
     history = dict(train=[], train_f1=[], eval_f1=[], eval=[])
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-
+    if getattr(args, "load_model", False):
+        load_existing_model(model, optimizer, checkpoint_path)
     for epoch in range(args.epochs):
         model = model.train()
         epoch_train_losses = list()

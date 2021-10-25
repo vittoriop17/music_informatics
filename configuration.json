@@ -9,5 +9,6 @@
   "hidden_size": 200,
   "n_classes": 11,
   "train": "lstm",
-  "dropout": 0.2
+  "dropout": 0.2,
+  "load_model": "True"
 }
