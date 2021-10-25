@@ -255,4 +255,11 @@ def train_svm(data, labels, stratified = True):
     model.fit(X_train, Y_train)
     y_pred = model.predict(X_test)
 
+    print('precision score (for each of the 11 classes): ')
+    print(precision_score(Y_test, y_pred, average=None))
+    print('f1 score: ')
+    print(f1_score(Y_test, y_pred, average='weighted'))
+
+    print('finished')
+
     return precision_score(Y_test, y_pred, average=None), f1_score(Y_test, y_pred, average='weighted')
