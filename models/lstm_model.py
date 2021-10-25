@@ -28,7 +28,6 @@ class LSTM_model(Module):
         self.device = args.device
         self.num_layers = args.num_layers
         self.input_size = args.input_size
-        # self.sequence_length = args.sequence_length
         self.sequence_length = args.sequence_length
         self.batch_size = args.batch_size
         self.n_classes = args.n_classes
@@ -97,47 +96,56 @@ class PreProcessNet(Module):
         super(PreProcessNet, self).__init__()
         self.input_size = 132299
         self.in_channels = 2
-        self.conv1_1 = Conv1d(in_channels=self.in_channels, out_channels=2*self.in_channels, kernel_size=3, dilation=1, device=args.device)
+        self.conv1_1 = Conv1d(in_channels=self.in_channels, out_channels=4*self.in_channels, kernel_size=3, dilation=1, device=args.device)
         self.conv1_1_out_size = check_conv1d_out_dim(self.input_size, 3, 0, 1, 1)
-        self.conv1_2 = Conv1d(in_channels=2*self.in_channels, out_channels=8*self.in_channels, kernel_size=7, dilation=3, device=args.device)
+        self.conv1_2 = Conv1d(in_channels=4*self.in_channels, out_channels=16*self.in_channels, kernel_size=7, dilation=3, device=args.device)
         self.conv1_2_out_size = check_conv1d_out_dim(self.conv1_1_out_size, 7, 0, 1, 3)
-        self.down_sampling_1 = DownSamplingBLock(args, channels=8*self.in_channels, dilation=1, stride=2)
+        self.down_sampling_1 = DownSamplingBLock(args, channels=16*self.in_channels, dilation=1, stride=2)
         self.down_sampling_1_out_size = check_conv1d_out_dim(self.conv1_2_out_size, 3, 0, 2, 1)
-        self.down_sampling_2 = DownSamplingBLock(args, channels=8*self.in_channels, dilation=3, stride=2)
+        self.down_sampling_2 = DownSamplingBLock(args, channels=16*self.in_channels, dilation=3, stride=2)
         self.down_sampling_2_out_size = check_conv1d_out_dim(self.down_sampling_1_out_size, 3, 0, 2, 3)
-        self.down_sampling_3 = DownSamplingBLock(args, channels=8*self.in_channels, dilation=9, stride=2)
+        self.down_sampling_3 = DownSamplingBLock(args, channels=16*self.in_channels, dilation=9, stride=2)
         self.down_sampling_3_out_size = check_conv1d_out_dim(self.down_sampling_2_out_size, 3, 0, 2, 9)
-        self.conv1_3 = Conv1d(in_channels=8*self.in_channels, out_channels=args.sequence_length, kernel_size=7, stride=4, dilation=2)
-        self.lstm_input_size = check_conv1d_out_dim(self.down_sampling_3_out_size, 7, 0, 4, 2)
-
+        self.conv1_3 = Conv1d(in_channels=16*self.in_channels, out_channels=32*self.in_channels, kernel_size=7, stride=4, dilation=2)
+        self.conv1_3_out_size = check_conv1d_out_dim(self.down_sampling_3_out_size, 7, 0, 4, 2)
+        self.down_sampling_4 = DownSamplingBLock(args, channels=32 * self.in_channels, dilation=1, stride=2)
+        self.down_sampling_4_out_size = check_conv1d_out_dim(self.conv1_3_out_size, 3, 0, 2, 1)
+        self.conv1_4 = Conv1d(in_channels=32 * self.in_channels, out_channels=args.sequence_length, kernel_size=12, stride=4, dilation=1)
+        # remember: the following instr is logically correct, since the tensor must be TRANSPOSED before passing through the lstm module!
+        # the input_size argument of LSTM is equal to the out_channels argument of the last convolution (conv1_3),
+        # due to the transposition
+        self.num_sequences = check_conv1d_out_dim(self.down_sampling_4_out_size, 12, 0, 4, 1)
         self.down_sampling_net = Sequential(
             self.conv1_1,
             self.conv1_2,
             self.down_sampling_1,
             self.down_sampling_2,
             self.down_sampling_3,
-            self.conv1_3
+            self.conv1_3,
+            self.down_sampling_4,
+            self.conv1_4
         )
         self.lstm = LSTM(
-            input_size=self.lstm_input_size,
+            input_size=args.sequence_length,
             hidden_size=args.hidden_size,
             dropout=args.dropout,
             device=args.device,
             batch_first=True,
-            bidirectional=True,
+            bidirectional=False,
             num_layers=args.num_layers)
         # todo - add attention block!!!
 
     def forward(self, x):
         x_down_sampled = self.down_sampling_net(x)
+        x_down_sampled = torch.transpose(x_down_sampled, 1, 2)
         x_lstm, (h_lstm, c_lstm) = self.lstm(x_down_sampled)
         return x_lstm
 
 
 class ClassificationNet(Module):
-    def __init__(self, args):
+    def __init__(self, args, num_sequences):
         super(ClassificationNet, self).__init__()
-        self.linear_1 = Linear(in_features=2*args.sequence_length*args.hidden_size, out_features=250, device=args.device)
+        self.linear_1 = Linear(in_features=num_sequences * args.hidden_size, out_features=250, device=args.device)
         self.batch_1 = BatchNorm1d(num_features=250, device=args.device)
         self.intro = Sequential(
             self.linear_1,
@@ -192,7 +200,7 @@ class InstrumentClassificationNet(Module):
     def __init__(self, args):
         super(InstrumentClassificationNet, self).__init__()
         self.preprocessing_net = PreProcessNet(args)
-        self.classification_net = ClassificationNet(args)
+        self.classification_net = ClassificationNet(args, self.preprocessing_net.num_sequences)
 
     def forward(self, x):
         x_pre = self.preprocessing_net(x)
