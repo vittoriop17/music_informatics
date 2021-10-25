@@ -99,7 +99,7 @@ class MusicDataset(Dataset):
 
 
 def stratified_split(ds: MusicDataset, args, train_size=0.7):
-    sss = StratifiedShuffleSplit(ds.classes, train_size=train_size, random_state=42, n_splits=2)
+    sss = StratifiedShuffleSplit(ds.classes, train_size=train_size, random_state=42)
     ds_train = MusicDataset(args, skip=True)
     ds_test = MusicDataset(args, skip=True)
     for train_idx, test_idx in sss:
