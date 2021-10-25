@@ -7,6 +7,7 @@ import torchvision.transforms as transforms
 import torch
 from sklearn.preprocessing import OneHotEncoder
 from scipy.io.wavfile import read
+from sklearn.model_selection import StratifiedShuffleSplit
 
 
 def check_classes(ds_train, ds_test):
@@ -18,6 +19,7 @@ def check_classes(ds_train, ds_test):
         cont_occ_test += input_class
     print(cont_occ_train)
     print(cont_occ_test)
+
 
 def read_audio(path):
     rate, audio_array = read(path)
@@ -38,10 +40,13 @@ def create_mini_dataset(path_src, path_dest):
 
 
 class MusicDataset(Dataset):
-    def __init__(self, args):
+    def __init__(self, args, skip=False):
         self.check_args(args)
         self.args = args
-        self.audio_file_paths, self.classes = self.get_audio_paths_n_classes()
+        if skip:
+            self.audio_file_paths, self.classes = list(), list()
+        else:
+            self.audio_file_paths, self.classes = self.get_audio_paths_n_classes()
         self.transform = transforms.Compose([transforms.ToTensor()])
 
     def __len__(self):
@@ -91,6 +96,19 @@ class MusicDataset(Dataset):
         print(f"Tot files: {tot_files}")
         ohe_classes = OneHotEncoder().fit_transform(X=np.array(file_classes).reshape(-1, 1))
         return file_names, ohe_classes
+
+
+def stratified_split(ds: MusicDataset, args, train_size=0.7):
+    sss = StratifiedShuffleSplit(ds.classes, train_size=train_size, random_state=42, n_splits=2)
+    ds_train = MusicDataset(args, skip=True)
+    ds_test = MusicDataset(args, skip=True)
+    for train_idx, test_idx in sss:
+        ds_train.audio_file_paths.append(ds.audio_file_paths[train_idx])
+        ds_train.classes.append(ds.classes[train_idx])
+        ds_test.audio_file_paths.append(ds.audio_file_paths[test_idx])
+        ds_test.classes.append(ds.classes[test_idx])
+    return ds_train, ds_test
+
 
 
 if __name__=='__main__':

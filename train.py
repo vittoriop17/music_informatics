@@ -1,5 +1,5 @@
 from torch.utils.data import DataLoader, random_split
-from utils.dataset import MusicDataset
+from utils.dataset import MusicDataset, stratified_split, check_classes
 from models import lstm_model, ae
 from torch import nn, optim
 import torch
@@ -22,9 +22,11 @@ def train(args):
     if choice == "lstm":
         model = lstm_model.InstrumentClassificationNet(args)
         ds = MusicDataset(args=args)
-        len_ds = len(ds)
-        len_ds_train = int(0.7 * len_ds)
-        ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))
+        ds_train, ds_test = stratified_split(ds, args, 0.7)
+        check_classes(ds_train, ds_test)
+        # len_ds = len(ds)
+        # len_ds_train = int(0.7 * len_ds)
+        # ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))
         criterion = nn.BCEWithLogitsLoss()
         print("\t TRAINING LSTM MODEL...")
         model, history = train_model(args, model, ds_train, ds_test, criterion)
@@ -36,9 +38,10 @@ def train(args):
     if choice == "cnn":
         model = None
         ds = MusicDataset(args=args)
-        len_ds = len(ds)
-        len_ds_train = int(0.7 * len_ds)
-        ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))
+        ds_train, ds_test = stratified_split(ds, args, 0.7)
+        # len_ds = len(ds)
+        # len_ds_train = int(0.7 * len_ds)
+        # ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))
         criterion = nn.BCEWithLogitsLoss()
         print("\t TRAINING CNN MODEL")
         model, history = train_model(args, model, ds_train, ds_test, criterion)
