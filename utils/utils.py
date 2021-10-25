@@ -26,6 +26,8 @@ def upload_args():
     parser.add_argument("--dataset_path", required=False, type=str, help="Path dataset")
     parser.add_argument("--checkpoint_path", required=False, type=str, help="Checkpoint path: for saving model parameters")
     parser.add_argument("--n_classes", required=False, type=int, help="Number of distinct instruments (classes)")
+    parser.add_argument("--load_model", required=False, type=bool,
+                        help="Load existing model, if present. The checkpoint path is given through 'checkpoint_path' argument")
     args = parser.parse_args()
     args = upload_args_from_json(args)
     print(args)
