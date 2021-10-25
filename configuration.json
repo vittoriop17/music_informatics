@@ -1,10 +1,14 @@
 {
-  "dataset_path":  "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\mini_dataset",
-  "epochs": 5,
-  "num_layers": 3,
-  "sequence_length": 20,
-  "lr": 1e-4,
-  "batch_size": 32,
+  "dataset_path":  "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\Dataset\\IRMAS-TrainingData",
+  "epochs": 100,
+  "num_layers": 4,
+  "sequence_length": 128,
+  "lr": 1e-3,
+  "batch_size": 64,
   "input_size": 801,
-  "n_classes": 11
+  "hidden_size": 128,
+  "n_classes": 11,
+  "train": "lstm",
+  "dropout": 0.25,
+  "load_model": "True"
 }

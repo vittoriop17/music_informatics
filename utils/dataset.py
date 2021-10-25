@@ -6,12 +6,25 @@ from shutil import copyfile
 import torchvision.transforms as transforms
 import torch
 from sklearn.preprocessing import OneHotEncoder
+from scipy.io.wavfile import read
+from sklearn.model_selection import StratifiedShuffleSplit
+
+
+def check_classes(ds_train, ds_test):
+    cont_occ_train = np.zeros((1, 11))
+    cont_occ_test = np.zeros((1, 11))
+    for input_data, input_class in ds_train:
+        cont_occ_train += input_class
+    for _, input_class in ds_test:
+        cont_occ_test += input_class
+    print(cont_occ_train)
+    print(cont_occ_test)
 
 
 def read_audio(path):
-    audio_seg = AudioSegment.from_wav(path)
-    audio_samples = np.array(audio_seg.set_channels(1).get_array_of_samples(), dtype=np.float64)
-    return audio_samples
+    rate, audio_array = read(path)
+    assert audio_array.shape[1] == 2, f"Audio channels is not 2. {audio_array.shape[1]} channel(s) found"
+    return audio_array.reshape(2, -1)
 
 
 def create_mini_dataset(path_src, path_dest):
@@ -27,10 +40,13 @@ def create_mini_dataset(path_src, path_dest):
 
 
 class MusicDataset(Dataset):
-    def __init__(self, args):
+    def __init__(self, args, skip=False):
         self.check_args(args)
         self.args = args
-        self.audio_file_paths, self.classes = self.get_audio_paths_n_classes()
+        if skip:
+            self.audio_file_paths, self.classes, self.nominal_classes = list(), list(), None
+        else:
+            self.audio_file_paths, self.classes, self.nominal_classes = self.get_audio_paths_n_classes()
         self.transform = transforms.Compose([transforms.ToTensor()])
 
     def __len__(self):
@@ -41,14 +57,14 @@ class MusicDataset(Dataset):
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"File not found! Path: {audio_path}")
         audio_samples = read_audio(audio_path)
-        audio_samples = self.add_padding(audio_samples)
-        audio_samples = (audio_samples - np.mean(audio_samples)) / np.std(audio_samples)
-        return torch.tensor(audio_samples), self.classes[index].toarray()
+        # audio_samples = self.add_padding(audio_samples)
+        audio_samples = (audio_samples - np.mean(audio_samples, axis=1, keepdims=True)) / np.std(audio_samples, axis=1, keepdims=True)
+        return torch.tensor(audio_samples, dtype=torch.float32), self.classes[index].toarray()
 
     def add_padding(self, audio_samples):
-        mod = len(audio_samples) % self.args.sequence_length
+        mod = audio_samples.shape[1] % self.args.sequence_length
         if mod != 0:
-            audio_samples = np.append(audio_samples, np.zeros((self.args.sequence_length - mod,)))
+            audio_samples = np.concatenate((audio_samples, np.zeros((2, self.args.sequence_length - mod))), axis=1)
         # setattr(self.args, "input_size", int(len(audio_samples) / self.args.sequence_length))
         return audio_samples
 
@@ -79,7 +95,20 @@ class MusicDataset(Dataset):
                 file_classes.append(base_class)
         print(f"Tot files: {tot_files}")
         ohe_classes = OneHotEncoder().fit_transform(X=np.array(file_classes).reshape(-1, 1))
-        return file_names, ohe_classes
+        return file_names, ohe_classes, file_classes
+
+
+def stratified_split(ds: MusicDataset, args, train_size=0.7):
+    sss = StratifiedShuffleSplit(1, train_size=train_size, random_state=42)
+    ds_train = MusicDataset(args, skip=True)
+    ds_test = MusicDataset(args, skip=True)
+    for train_idx, test_idx in sss.split(ds.audio_file_paths, ds.nominal_classes):
+        ds_train.audio_file_paths = np.array(ds.audio_file_paths)[train_idx]
+        ds_train.classes = ds.classes[train_idx, :]
+        ds_test.audio_file_paths = np.array(ds.audio_file_paths)[test_idx]
+        ds_test.classes = ds.classes[test_idx, :]
+    return ds_train, ds_test
+
 
 
 if __name__=='__main__':
@@ -87,7 +116,7 @@ if __name__=='__main__':
     # main_dir = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\dataset\\IRMAS-TrainingData"
     # dest_dir = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\mini_dataset"
     #
-    # create_mini_dataset(main_dir, dest_dir)
+    # # create_mini_dataset(main_dir, dest_dir)
     # cont = 0
     # tot_files = 0
     # classes = list()
@@ -98,12 +127,9 @@ if __name__=='__main__':
     #         if not file.endswith(".wav"):
     #             continue
     #         samples = read_audio(os.path.join(root, file))
-    #         if not len(samples) == 264598/2:
-    #             cont += 1
     #         tot_files += 1
     #         file_classes.append(base_class)
     #     classes.append(base_class)
     # print(f"Tot files: {tot_files}")
-    # print(f"Number files with length different from the standard one: {cont}")
     # print(f"Number of classes: {len(classes)}")
     # print(f"Number of audio x class: {np.unique(file_classes, return_counts=True)}")
