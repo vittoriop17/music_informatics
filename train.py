@@ -47,7 +47,7 @@ def train(args):
 def load_existing_model(model, optimizer, checkpoint_path):
     try:
         print(f"Trying to load existing model from checkpoint @ {checkpoint_path}...")
-        checkpoint = torch.load(checkpoint_path, map_location=torch.device("cpu"))
+        checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         print("...existing model loaded")
