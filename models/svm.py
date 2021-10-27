@@ -5,14 +5,15 @@ import numpy as np
 from sklearn.svm import LinearSVC
 from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
 from sklearn.metrics import accuracy_score, precision_score, f1_score
+import os
 
 
 
 stratified = True
-data = np.load('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data\\out_dataset_spec.npy')
+data = np.load('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data\\out_dataset_def.npy')
 flattened_data =np.array([data_matrix.flatten() for data_matrix in data])
 
-labels = np.load('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data\\out_labels_spec.npy')
+labels = np.load('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data\\out_labels_def.npy')
 
 if stratified:
     sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
@@ -31,7 +32,9 @@ print(precision_score(Y_test, y_pred, average = None))
 
 print(f1_score(Y_test, y_pred, average = 'weighted'))
 print(accuracy_score(Y_test, y_pred))
-
+output_path = 'C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data'
+np.save(os.path.join(output_path, 'y_test_svm_strat.npy'), Y_test)
+np.save(os.path.join(output_path, 'y_pred_svm_strat.npy'), y_pred)
 
 print('finished')
 

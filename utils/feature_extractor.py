@@ -65,8 +65,7 @@ def dataset_preprocessor(input_path, normalize_amplitude, spectrogram, normalize
 
     instr_folder = os.listdir(input_path)
     # number of features: 25
-    # number of samples/each feature: len(audio_samples)/(window_size - hop_length) = 53
-    data = np.empty((num_files, 128, 259), dtype=np.float32)
+    data = np.empty((num_files, 25, 65), dtype=np.float32)
 
     #data_labels = np.empty((num_files, 11), dtype= bool)        # num. classes = 11
     data_labels = np.empty(num_files, dtype= np.int32)
@@ -86,7 +85,7 @@ def dataset_preprocessor(input_path, normalize_amplitude, spectrogram, normalize
                 else:
                     pass
                 # set here params for the feature extraction
-                features_args = {"y":samples_audio, "sr":sample_rate,"hop_length": 8192 // 4, "n_fft":8192}
+                features_args = {"y":samples_audio, "sr":sample_rate, "hop_length": 8192 // 4, "n_fft":8192}
 
                 if spectrogram:
                     print('extracting mel spectrogram for audio: ' + audio_name)
@@ -131,12 +130,12 @@ def dataset_preprocessor(input_path, normalize_amplitude, spectrogram, normalize
 
 
     print('saving data to .npy file...')
-    np.save(os.path.join(output_path,'out_dataset_spec.npy'), data)
+    np.save(os.path.join(output_path,'out_dataset_def.npy'), data)
 
     print('Done.')
 
     print('saving labels to .npy file...')
-    np.save(os.path.join(output_path, 'out_labels_spec.npy'), data_labels)
+    np.save(os.path.join(output_path, 'out_labels_def.npy'), data_labels)
 
     print('Done.')
 
@@ -151,4 +150,4 @@ def dataset_preprocessor(input_path, normalize_amplitude, spectrogram, normalize
 
 
 
-dataset_preprocessor('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\IRMAS-TrainingData', True, True)
+dataset_preprocessor('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\IRMAS-TrainingData', True, False)
