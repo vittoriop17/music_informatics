@@ -144,10 +144,5 @@ def dataset_preprocessor(input_path, normalize_amplitude, spectrogram, normalize
 
 
 
-
-
-
-
-
-
-dataset_preprocessor('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\IRMAS-TrainingData', True, False)
+if __name__=='__main__':
+    dataset_preprocessor('C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\IRMAS-TrainingData', True, False)
