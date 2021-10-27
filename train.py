@@ -164,7 +164,7 @@ def train_model(args, model, ds_train, ds_test, criterion):
 
         print(f"Epoch: {epoch}, \n train loss & f1-score: {mean_train_loss}, {mean_train_f1_score}, "
               f"\t test loss & f1-score: {mean_test_loss}, {mean_test_f1_score}")
-        if (epoch + 1) % 10 == 0 or (mean_test_f1_score > history['max_test_f1_score']):
+        if mean_test_f1_score > history['max_test_f1_score']:
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),

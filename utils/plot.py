@@ -6,7 +6,6 @@ import utils
 from sklearn.metrics import confusion_matrix, f1_score
 import itertools
 
-
 def save_audio_specs(dataset_path, specs_x_inst=5):
     save_dir = "..\\data_exploration"
     try:
@@ -44,7 +43,7 @@ def plot_spec(audio_path, audio_class):
 def save_confusion_matrix(y_true, y_pred, classes, name_method):
     cm = confusion_matrix(y_true=y_true, y_pred=y_pred)
     micro_f1 = f1_score(y_true=y_true, y_pred=y_pred, average="micro")
-    plot_confusion_matrix(cm, classes, title=name_method+f", micro F1-score: {micro_f1}")
+    plot_confusion_matrix(cm, classes, title=str.upper(name_method)+f", micro F1-score: {micro_f1:.3f}")
     plt.savefig(name_method+"confusion_mat.png")
 
 
@@ -72,7 +71,11 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
 
+
 if __name__=='__main__':
     args = utils.upload_args("../configuration.json")
-    save_audio_specs(args.dataset_path)
-
+    # save_audio_specs(args.dataset_path)
+    y_true = np.load('..\\data\\y_test_svm_strat.npy')
+    y_pred= np.load('..\\data\\y_pred_svm_strat.npy')
+    classes = 'cel','cla','flu','gac','gel','org','pia','sax','tru','vio','voi'
+    save_confusion_matrix(y_true, y_pred, classes, "svm")
