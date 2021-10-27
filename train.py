@@ -4,9 +4,10 @@ from models import lstm_model, ae
 from torch import nn, optim
 import torch
 import os
-
 import numpy as np
 from sklearn.metrics import f1_score
+from utils.plot import save_confusion_matrix
+from utils.utils import upload_args
 from utils.feature_extractor import dataset_preprocessor
 from sklearn.svm import LinearSVC
 from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
@@ -29,7 +30,7 @@ def train(args):
     if choice == "lstm":
         model = lstm_model.InstrumentClassificationNet(args)
         ds = MusicDataset(args=args)
-        ds_train, ds_test = stratified_split(ds, args, 0.7)
+        ds_train, ds_test = stratified_split(ds, args, 0.8)
         # len_ds = len(ds)
         # len_ds_train = int(0.7 * len_ds)
         # ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))
@@ -61,7 +62,7 @@ def train(args):
         model = None
         ds = MusicDataset(args=args)
         ds.__getitem__(0)
-        ds_train, ds_test = stratified_split(ds, args, 0.7)
+        ds_train, ds_test = stratified_split(ds, args, 0.8)
         # len_ds = len(ds)
         # len_ds_train = int(0.7 * len_ds)
         # ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))
@@ -83,6 +84,28 @@ def load_existing_model(model, optimizer, checkpoint_path):
         print(f"During loading the existing model, the following exception occured: \n{e}")
         print("The execution will continue anyway")
 
+
+def confusion_matrix_from_existing_model(args, checkpoint_path):
+    if args.train == 'lstm':
+        model = lstm_model.InstrumentClassificationNet(args)
+        # checkpoint = torch.load(checkpoint_path)
+        # model.load_state_dict(checkpoint['model_state_dict'])
+        ds = MusicDataset(args=args)
+        _, ds_test = stratified_split(ds, args, 0.8)
+        batch_size = 64
+        data_loader = DataLoader(ds_test, batch_size=batch_size, shuffle=True)
+        classes = ds.ohe.get_feature_names()
+        classes = [classs.replace("x0_","") for classs in classes]
+    else:
+        return
+    y_true = np.zeros((len(ds_test), 1))
+    y_pred = np.zeros((len(ds_test), 1))
+    for idx, (batch, y_true_batch) in enumerate(data_loader):
+        batch_size = batch.shape[0]
+        start_idx = idx*batch.shape[0]
+        y_true[start_idx:start_idx+batch_size] = np.argmax(y_true_batch.detach().numpy(), axis=-1).reshape(-1,1).astype(np.int64)
+        y_pred[start_idx:start_idx+batch_size] = np.argmax(model(batch).detach().numpy(), axis=-1).reshape(-1,1).astype(np.int64)
+    save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method=args.train)
 
 def train_model(args, model, ds_train, ds_test, criterion):
     checkpoint_path = args.checkpoint_path if getattr(args, "checkpoint_path", None) is not None else str("./checkpoint.pt")
@@ -267,3 +290,10 @@ def train_svm(data, labels, stratified = True):
     print('finished')
 
     return precision_score(Y_test, y_pred, average=None), f1_score(Y_test, y_pred, average='weighted')
+
+
+
+if __name__=='__main__':
+    args = upload_args("configuration.json")
+    setattr(args,"device","cpu")
+    confusion_matrix_from_existing_model(args, checkpoint_path="..\\checkpoint.pt")

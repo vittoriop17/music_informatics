@@ -114,7 +114,8 @@ class MusicDataset(Dataset):
                 file_names.append(os.path.join(root, file))
                 file_classes.append(base_class)
         print(f"Tot files: {tot_files}")
-        ohe_classes = OneHotEncoder().fit_transform(X=np.array(file_classes).reshape(-1, 1))
+        self.ohe = OneHotEncoder()
+        ohe_classes = self.ohe.fit_transform(X=np.array(file_classes).reshape(-1, 1))
         return file_names, ohe_classes, file_classes
 
 
@@ -163,6 +164,7 @@ class CropAudio(object):
 
     def __call__(self, waveform):
         return self._crop_audio(waveform)
+
 
 def stratified_split(ds: MusicDataset, args, train_size=0.8):
     sss = StratifiedShuffleSplit(1, train_size=train_size, random_state=42)
