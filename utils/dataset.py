@@ -8,6 +8,9 @@ import torch
 from sklearn.preprocessing import OneHotEncoder
 from scipy.io.wavfile import read
 from sklearn.model_selection import StratifiedShuffleSplit
+import torchaudio
+import torchaudio.transforms
+import matplotlib.pyplot as plt
 
 
 def check_classes(ds_train, ds_test):
@@ -47,7 +50,16 @@ class MusicDataset(Dataset):
             self.audio_file_paths, self.classes, self.nominal_classes = list(), list(), None
         else:
             self.audio_file_paths, self.classes, self.nominal_classes = self.get_audio_paths_n_classes()
-        self.transform = transforms.Compose([transforms.ToTensor()])
+        if args.train == "cnn":
+            self.transform = transforms.Compose([
+                ProcessChannels("avg"),
+                CropAudio(),
+                StdScaler(),
+                torchaudio.transforms.Spectrogram(n_fft=1024, win_length=512, normalized=False),
+                torchaudio.transforms.AmplitudeToDB(),
+            ])
+        else:
+            self.transform = transforms.Compose([transforms.ToTensor()])
 
     def __len__(self):
         return len(self.audio_file_paths)
@@ -56,6 +68,14 @@ class MusicDataset(Dataset):
         audio_path = self.audio_file_paths[index]
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"File not found! Path: {audio_path}")
+        if self.args.train == "cnn":
+            waveform, sample_rate = torchaudio.load(audio_path)
+            # specgram = torchaudio.transforms.MelSpectrogram()(waveform)
+            # print("Shape of spectrogram: {}".format(specgram.size()))
+            # plt.figure()
+            # plt.imshow(specgram.log2()[0,:,:].numpy(), cmap='gray')
+            # TODO - Data Normalization!!!! Apply the same normalization of ImageNet
+            return self.transform(waveform), self.classes[index].toarray()
         audio_samples = read_audio(audio_path)
         # audio_samples = self.add_padding(audio_samples)
         audio_samples = (audio_samples - np.mean(audio_samples, axis=1, keepdims=True)) / np.std(audio_samples, axis=1, keepdims=True)
@@ -98,7 +118,53 @@ class MusicDataset(Dataset):
         return file_names, ohe_classes, file_classes
 
 
-def stratified_split(ds: MusicDataset, args, train_size=0.7):
+class StdScaler(object):
+    def __init__(self):
+        pass
+
+    def _normalize(self, x):
+        x = (x - torch.mean(x)) / torch.std(x)
+        return x
+
+    def __call__(self, x):
+        return self._normalize(x)
+
+
+class ProcessChannels(object):
+
+    def __init__(self, mode):
+        self.mode = mode
+
+    def _modify_channels(self, waveform, mode):
+        if mode == 'avg':
+            new_audio = waveform.mean(axis=0) if waveform.ndim > 1 else waveform
+            new_audio = torch.unsqueeze(new_audio, dim=0)
+        else:
+            new_audio = waveform
+        return new_audio
+
+    def __call__(self, tensor):
+        return self._modify_channels(tensor, self.mode)
+
+
+class CropAudio(object):
+    def __init__(self, length=3, sample_rate=44100):
+        self.length = length
+        self.sample_rate = sample_rate
+
+    def _crop_audio(self, waveform):
+        num_tot_samples = self.length * self.sample_rate
+        audio_len = waveform.shape[1]
+        if audio_len > num_tot_samples:
+            random_start = np.random.randint(0, audio_len - num_tot_samples)
+            end = random_start + num_tot_samples
+            waveform = waveform[:, random_start:end]
+        return waveform
+
+    def __call__(self, waveform):
+        return self._crop_audio(waveform)
+
+def stratified_split(ds: MusicDataset, args, train_size=0.8):
     sss = StratifiedShuffleSplit(1, train_size=train_size, random_state=42)
     ds_train = MusicDataset(args, skip=True)
     ds_test = MusicDataset(args, skip=True)

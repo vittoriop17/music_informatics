@@ -35,15 +35,16 @@ def train(args):
     if choice == "svm":
         raise NotImplementedError("Implement train_svm")
     if choice == "cnn":
-        raise NotImplementedError("Implement CNN network")
         model = None
         ds = MusicDataset(args=args)
+        ds.__getitem__(0)
         ds_train, ds_test = stratified_split(ds, args, 0.7)
         # len_ds = len(ds)
         # len_ds_train = int(0.7 * len_ds)
         # ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))
         criterion = nn.BCEWithLogitsLoss()
         print("\t TRAINING CNN MODEL")
+        raise NotImplementedError("Implement CNN network")
         model, history = train_model(args, model, ds_train, ds_test, criterion)
 
 
@@ -66,7 +67,7 @@ def train_model(args, model, ds_train, ds_test, criterion):
     test_dataloader = DataLoader(ds_test, args.batch_size, shuffle=True)
     model = model.to(args.device)
     model = model.float()
-    history = dict(train=[], train_f1=[], eval_f1=[], eval=[])
+    history = dict(train=[], train_f1=[], eval_f1=[], eval=[], max_test_f1_score=0)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     if getattr(args, "load_model", False):
         load_existing_model(model, optimizer, checkpoint_path)
@@ -102,7 +103,9 @@ def train_model(args, model, ds_train, ds_test, criterion):
                 test_loss = criterion(y_pred, y_true.reshape(-1, args.n_classes))
                 # print({'epoch': epoch, 'batch_num': batch_num, 'loss': loss.item()})
                 epoch_test_losses.append(test_loss.item())
-                epoch_test_f1_scores.append(f1_score(y_true=np.argmax(y_true.detach().cpu().numpy(), axis=-1), y_pred=np.argmax(y_pred.detach().cpu().numpy(), axis=-1), average="micro"))
+                batch_test_f1_score = f1_score(y_true=np.argmax(y_true.detach().cpu().numpy(), axis=-1), y_pred=np.argmax(y_pred.detach().cpu().numpy(), axis=-1), average="micro")
+                epoch_test_f1_scores.append(batch_test_f1_score)
+
             mean_test_loss = np.mean(epoch_test_losses)
             mean_test_f1_score = np.mean(epoch_test_f1_scores)
             history['eval'].append(mean_test_loss)
@@ -110,13 +113,14 @@ def train_model(args, model, ds_train, ds_test, criterion):
 
         print(f"Epoch: {epoch}, \n train loss & f1-score: {mean_train_loss}, {mean_train_f1_score}, "
               f"\t test loss & f1-score: {mean_test_loss}, {mean_test_f1_score}")
-        if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % 10 == 0 or (mean_test_f1_score > history['max_test_f1_score']):
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss
             }, checkpoint_path)
+            history['max_test_f1_score'] = mean_test_f1_score
     return model, history
 
 
