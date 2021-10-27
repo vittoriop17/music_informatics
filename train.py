@@ -103,21 +103,13 @@ def confusion_matrix_from_existing_model(args, checkpoint_path):
     save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method=args_checkpoint.train)
 
 
-def init_weights(m):
-    if isinstance(m, nn.Linear):
-        torch.nn.init.kaiming_uniform_(m.weight)
-        # torch.nn.init.xavier_uniform(m.bias)
-    if isinstance(m, nn.Conv1d):
-        torch.nn.init.xavier_normal(m.weight)
-
 def train_model(args, model, ds_train, ds_test, criterion):
     checkpoint_path = args.checkpoint_path if getattr(args, "checkpoint_path", None) is not None else str("./checkpoint.pt")
     train_dataloader = DataLoader(ds_train, args.batch_size, shuffle=True)
     test_dataloader = DataLoader(ds_test, args.batch_size, shuffle=True)
     model = model.to(args.device)
     model = model.float()
-    model.apply(init_weights)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
     max_test_f1_score = 0
     if getattr(args, "load_model", False):
         max_test_f1_score = load_existing_model(model, optimizer, checkpoint_path)
