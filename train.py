@@ -78,12 +78,15 @@ def load_existing_model(model, optimizer, checkpoint_path):
 
 
 def confusion_matrix_from_existing_model(args, checkpoint_path):
-    if args.train == 'lstm':
-        model = lstm_model.InstrumentClassificationNet(args)
-        checkpoint = torch.load(checkpoint_path, map_location=args.device)
+    checkpoint = torch.load(checkpoint_path, map_location=args.device)
+    args_checkpoint = checkpoint['args']
+    setattr(args_checkpoint,"device", "cuda" if torch.cuda.is_available() else "cpu")
+    setattr(args_checkpoint,"dataset_path", args.dataset_path)
+    if args_checkpoint.train == 'lstm':
+        model = lstm_model.InstrumentClassificationNet(args_checkpoint)
         model.load_state_dict(checkpoint['model_state_dict'])
-        ds = MusicDataset(args=args)
-        _, ds_test = stratified_split(ds, args, 0.8)
+        ds = MusicDataset(args=args_checkpoint)
+        _, ds_test = stratified_split(ds, args_checkpoint, 0.8)
         batch_size = 64
         data_loader = DataLoader(ds_test, batch_size=batch_size, shuffle=True)
         classes = ds.ohe.get_feature_names()
@@ -97,7 +100,7 @@ def confusion_matrix_from_existing_model(args, checkpoint_path):
         start_idx = idx*batch.shape[0]
         y_true[start_idx:start_idx+batch_size] = np.argmax(y_true_batch.detach().numpy(), axis=-1).reshape(-1,1).astype(np.int64)
         y_pred[start_idx:start_idx+batch_size] = np.argmax(model(batch).detach().numpy(), axis=-1).reshape(-1,1).astype(np.int64)
-    save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method=args.train)
+    save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method=args_checkpoint.train)
 
 
 def init_weights(m):
@@ -141,8 +144,8 @@ def train_model(args, model, ds_train, ds_test, criterion):
 
         mean_train_loss = np.mean(epoch_train_losses)
         train_f1_score = f1_score(y_true=y_true_all, y_pred=y_pred_all, average="micro")
-        history['train'].append((mean_train_loss))
-        history['train_f1'].append((train_f1_score))
+        history['train'].append(mean_train_loss)
+        history['train_f1'].append(train_f1_score)
         epoch_test_losses = list()
         y_true_all = np.zeros((len(ds_test), 1), dtype=np.int64)
         y_pred_all = y_true_all.copy()
@@ -175,7 +178,9 @@ def train_model(args, model, ds_train, ds_test, criterion):
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss,
                 'max_test_f1_score': eval_f1_score,
-                'args': args
+                'args': args,
+                'y_true': y_true_all,
+                'y_pred': y_pred_all
             }, checkpoint_path)
             history['max_test_f1_score'] = eval_f1_score
     return model, history
@@ -211,4 +216,4 @@ def train_svm(data, labels, stratified = True):
 if __name__=='__main__':
     args = upload_args("configuration.json")
     setattr(args,"device","cpu")
-    confusion_matrix_from_existing_model(args, checkpoint_path="checkpoints\\checkpoint0_35.pt")
+    confusion_matrix_from_existing_model(args, checkpoint_path="checkpoints\\checkpoint_bad.pt")
