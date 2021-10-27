@@ -7,9 +7,9 @@
   "lr": 1e-3,
   "batch_size": 64,
   "input_size": 801,
-  "hidden_size": 128,
+  "hidden_size": 150,
   "n_classes": 11,
   "train": "lstm",
-  "dropout": 0.3,
+  "dropout": 0.25,
   "load_model": "False"
 }

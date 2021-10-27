@@ -4,3 +4,6 @@ data
 data_exploration
 IMAGES
 *.png
+checkpoint.pt
+discorso.txt
+checkpoints

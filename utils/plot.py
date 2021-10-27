@@ -77,5 +77,5 @@ if __name__=='__main__':
     # save_audio_specs(args.dataset_path)
     y_true = np.load('..\\data\\y_test_svm_strat.npy')
     y_pred= np.load('..\\data\\y_pred_svm_strat.npy')
-    classes = 'cel','cla','flu','gac','gel','org','pia','sax','tru','vio','voi'
+    classes = ['cel','cla','flu','gac','gel','org','pia','sax','tru','vio','voi']
     save_confusion_matrix(y_true, y_pred, classes, "svm")

@@ -14,10 +14,8 @@ from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
 from sklearn.metrics import precision_score, f1_score
 
 
-
-# TODO - think about a train_wrapper (automatically select the model to be trained)
 def train(args):
-    options = ["lstm", "ae", "svm", "cnn"]
+    options = ["lstm", "svm", "cnn"]
     choice = getattr(args, "train", None)
     if choice is None:
         raise Exception(f"Argument not found! Please insert a valid argument for 'train' option {options}")
@@ -37,9 +35,6 @@ def train(args):
         criterion = nn.BCEWithLogitsLoss()
         print("\t TRAINING LSTM MODEL...")
         model, history = train_model(args, model, ds_train, ds_test, criterion)
-    if choice == "ae":
-        print("\t TRAINING AUTOENCODER...")
-        train_ae(args)
 
     if choice == "svm":
         print("\t TRAINING SVM...")
@@ -52,12 +47,6 @@ def train(args):
             labels = np.load(os.path.join(args.features_dataset_path,'out_labels.npy'))
         # train the svm model
         precision_per_classes, f1_score = train_svm(data, labels)
-
-
-
-
-
-
     if choice == "cnn":
         model = None
         ds = MusicDataset(args=args)
@@ -91,8 +80,8 @@ def load_existing_model(model, optimizer, checkpoint_path):
 def confusion_matrix_from_existing_model(args, checkpoint_path):
     if args.train == 'lstm':
         model = lstm_model.InstrumentClassificationNet(args)
-        # checkpoint = torch.load(checkpoint_path)
-        # model.load_state_dict(checkpoint['model_state_dict'])
+        checkpoint = torch.load(checkpoint_path, map_location=args.device)
+        model.load_state_dict(checkpoint['model_state_dict'])
         ds = MusicDataset(args=args)
         _, ds_test = stratified_split(ds, args, 0.8)
         batch_size = 64
@@ -117,7 +106,7 @@ def train_model(args, model, ds_train, ds_test, criterion):
     test_dataloader = DataLoader(ds_test, args.batch_size, shuffle=True)
     model = model.to(args.device)
     model = model.float()
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0.01)
     max_test_f1_score = 0
     if getattr(args, "load_model", False):
         max_test_f1_score = load_existing_model(model, optimizer, checkpoint_path)
@@ -125,8 +114,9 @@ def train_model(args, model, ds_train, ds_test, criterion):
     for epoch in range(args.epochs):
         model = model.train()
         epoch_train_losses = list()
-        epoch_train_f1_scores = list()
-        for x, y_true in train_dataloader:
+        y_true_all = np.zeros((len(ds_train), 1), dtype=np.int64)
+        y_pred_all = y_true_all.copy()
+        for batch_idx, (x, y_true) in enumerate(train_dataloader):
             x = x.to(args.device)
             y_true = y_true.to(args.device)
             optimizer.zero_grad()
@@ -136,140 +126,51 @@ def train_model(args, model, ds_train, ds_test, criterion):
             loss.backward()
             optimizer.step()
             epoch_train_losses.append(loss.item())
-            y_true = torch.squeeze(y_true, dim=1)
-            epoch_train_f1_scores.append((f1_score(y_true=np.argmax(y_true.detach().cpu().numpy(), axis=-1), y_pred=np.argmax(y_pred.detach().cpu().numpy(), axis=-1), average="micro")))
+            # store ground truth and predicted targets. Necessary for f1 score of the whole TRAIN dataset
+            start_idx = batch_idx * args.batch_size
+            y_true_all[start_idx:start_idx + x.shape[0]] = np.argmax(torch.squeeze(y_true, dim=1).detach().cpu().numpy(), axis=-1).reshape(-1,1)
+            y_pred_all[start_idx:start_idx + x.shape[0]] = np.argmax(y_pred.detach().cpu().numpy(), axis=-1).reshape(-1,1)
+
         mean_train_loss = np.mean(epoch_train_losses)
-        mean_train_f1_score = np.mean(epoch_train_f1_scores)
+        train_f1_score = f1_score(y_true=y_true_all, y_pred=y_pred_all, average="micro")
         history['train'].append((mean_train_loss))
-        history['train_f1'].append((mean_train_f1_score))
+        history['train_f1'].append((train_f1_score))
         epoch_test_losses = list()
-        epoch_test_f1_scores = list()
+        y_true_all = np.zeros((len(ds_test), 1), dtype=np.int64)
+        y_pred_all = y_true_all.copy()
         model = model.eval()
         with torch.no_grad():
-            for x_test, y_true in test_dataloader:
+            for batch_idx, (x_test, y_true) in enumerate(test_dataloader):
                 x_test = x_test.to(args.device)
                 y_true = y_true.to(args.device)
                 y_pred = model(x_test)
                 y_pred = y_pred.to(args.device)
                 test_loss = criterion(y_pred, y_true.reshape(-1, args.n_classes))
                 # print({'epoch': epoch, 'batch_num': batch_num, 'loss': loss.item()})
+                # store ground truth and predicted targets. Necessary for f1 score of the whole TEST dataset
+                start_idx = batch_idx * args.batch_size
+                y_true_all[start_idx:start_idx + x_test.shape[0]] = np.argmax(torch.squeeze(y_true, dim=1).detach().cpu().numpy(), axis=-1).reshape(-1,1)
+                y_pred_all[start_idx:start_idx + x_test.shape[0]] = np.argmax(y_pred.detach().cpu().numpy(), axis=-1).reshape(-1,1)
                 epoch_test_losses.append(test_loss.item())
-                batch_test_f1_score = f1_score(y_true=np.argmax(y_true.detach().cpu().numpy(), axis=-1), y_pred=np.argmax(y_pred.detach().cpu().numpy(), axis=-1), average="micro")
-                epoch_test_f1_scores.append(batch_test_f1_score)
 
             mean_test_loss = np.mean(epoch_test_losses)
-            mean_test_f1_score = np.mean(epoch_test_f1_scores)
+            eval_f1_score = f1_score(y_true=y_true_all, y_pred=y_pred_all, average='micro')
             history['eval'].append(mean_test_loss)
-            history['eval_f1'].append(mean_test_f1_score)
+            history['eval_f1'].append(eval_f1_score)
 
-        print(f"Epoch: {epoch}, \n train loss & f1-score: {mean_train_loss}, {mean_train_f1_score}, "
-              f"\t test loss & f1-score: {mean_test_loss}, {mean_test_f1_score}")
-        if mean_test_f1_score > history['max_test_f1_score']:
+        print(f"Epoch: {epoch}, \n train loss & f1-score: {mean_train_loss}, {train_f1_score}, "
+              f"\t test loss & f1-score: {mean_test_loss}, {eval_f1_score}")
+        if eval_f1_score > history['max_test_f1_score']:
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss,
-                'max_test_f1_score': mean_test_f1_score
+                'max_test_f1_score': eval_f1_score,
+                'args': args
             }, checkpoint_path)
-            history['max_test_f1_score'] = mean_test_f1_score
+            history['max_test_f1_score'] = eval_f1_score
     return model, history
-
-
-def train_ae(args):
-    checkpoint_path = args.checkpoint_path if hasattr(args, "checkpoint_path") else "./checkpoint.pt"
-    ds = MusicDataset(args=args)
-    len_ds = len(ds)
-    len_ds_train = int(0.7 * len_ds)
-    ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))
-    train_dataloader = DataLoader(ds_train, args.batch_size, shuffle=True)
-    test_dataloader = DataLoader(ds_test, args.batch_size, shuffle=True)
-    model = ae.Music_AE(args)
-    model = model.to(args.device)
-    model = model.float()
-    history = dict(train=[], eval=[])
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-
-    for epoch in range(args.epochs):
-        model.train()
-        train_losses = list()
-        for x, _ in train_dataloader:
-            x = x.to(args.device)
-            criterion.zero_grad()
-            x_pred = model(x.float())
-            loss = criterion(x_pred.float(), x.float())
-            loss.backward()
-            optimizer.step()
-            train_losses.append(loss.item())
-        mean_train_loss = np.mean(train_losses)
-        history['train'].append(mean_train_loss)
-        # start evaluation
-        model.eval()
-        test_losses = list()
-        for x, _ in test_dataloader:
-            x = x.to(args.device)
-            x_pred = model(x.float())
-            test_loss = criterion(x_pred.float(), x.float())
-            test_losses.append(test_loss.item())
-        mean_test_loss = np.mean(test_losses)
-        history['eval'].append(mean_test_loss)
-        print(f"Epoch: {epoch}, \t train loss: {mean_train_loss}, \t test loss: {mean_test_loss}")
-        if epoch % 10 == 0:
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss
-            }, checkpoint_path)
-
-
-def train_lstm(args):
-    ds = MusicDataset(args=args)
-    len_ds = len(ds)
-    len_ds_train = int(0.7 * len_ds)
-    ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))
-    train_dataloader = DataLoader(ds_train, args.batch_size, shuffle=True)
-    test_dataloader = DataLoader(ds_test, args.batch_size, shuffle=True)
-    model = lstm_model.InstrumentClassificationNet(args)
-    model = model.float()
-    model = model.to(args.device)
-    model.train()
-    criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-
-    history = dict(train=[], val=[])
-
-    for epoch in range(args.epochs):
-        model = model.train()
-        epoch_train_losses = list()
-        for x, y_true in train_dataloader:
-            x = x.to(args.device)
-            y_true = y_true.to(args.device)
-            optimizer.zero_grad()
-            y_pred = model(x)
-            y_pred = y_pred.to(args.device)
-            loss = criterion(y_pred, y_true.reshape(-1, args.n_classes))
-            loss.backward()
-            optimizer.step()
-            epoch_train_losses.append(loss.item())
-        mean_train_loss = np.mean(epoch_train_losses)
-        history['train'].append((mean_train_loss))
-        epoch_test_losses = list()
-        model = model.eval()
-        with torch.no_grad():
-            for x_test, y_true in test_dataloader:
-                x_test = x_test.to(args.device)
-                y_true = y_true.to(args.device)
-                y_pred = model(x_test)
-                y_pred = y_pred.to(args.device)
-                loss = criterion(y_pred, y_true.reshape(-1, args.n_classes))
-                # print({'epoch': epoch, 'batch_num': batch_num, 'loss': loss.item()})
-                epoch_test_losses.append(loss.item())
-            mean_test_loss = np.mean(epoch_test_losses)
-            history['val'].append(mean_test_loss)
-        print(f"Epoch: {epoch}, \t train loss: {mean_train_loss}, \t test loss: {mean_test_loss}")
-
 
 
 def train_svm(data, labels, stratified = True):
@@ -302,4 +203,4 @@ def train_svm(data, labels, stratified = True):
 if __name__=='__main__':
     args = upload_args("configuration.json")
     setattr(args,"device","cpu")
-    confusion_matrix_from_existing_model(args, checkpoint_path="..\\checkpoint.pt")
+    confusion_matrix_from_existing_model(args, checkpoint_path="checkpoints\\checkpoint0_35.pt")

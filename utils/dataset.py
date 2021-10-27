@@ -118,6 +118,16 @@ class MusicDataset(Dataset):
         ohe_classes = self.ohe.fit_transform(X=np.array(file_classes).reshape(-1, 1))
         return file_names, ohe_classes, file_classes
 
+    def copy_files_to(self, dest_path):
+        for audio_path in self.audio_file_paths:
+            audio_name = os.path.basename(audio_path)
+            audio_class = os.path.basename(os.path.dirname(audio_path))
+            try:
+                os.makedirs(os.path.join(dest_path, audio_class))
+            except:
+                pass
+            copyfile(audio_path, os.path.join(dest_path, audio_class, audio_name))
+
 
 class StdScaler(object):
     def __init__(self):
@@ -178,7 +188,6 @@ def stratified_split(ds: MusicDataset, args, train_size=0.8):
     return ds_train, ds_test
 
 
-
 if __name__=='__main__':
     print()
     # main_dir = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\dataset\\IRMAS-TrainingData"
@@ -201,3 +210,8 @@ if __name__=='__main__':
     # print(f"Tot files: {tot_files}")
     # print(f"Number of classes: {len(classes)}")
     # print(f"Number of audio x class: {np.unique(file_classes, return_counts=True)}")
+    # args = upload_args(file_path="..\\configuration.json")
+    # ds = MusicDataset(args)
+    # ds_train, ds_test = stratified_split(ds, train_size=0.8, args=args)
+    # # ds_train.copy_files_to(dest_path="..\\dataset\\train")
+    # ds_train.copy_files_to(dest_path="..\\dataset\\test")
