@@ -79,10 +79,13 @@ def load_existing_model(model, optimizer, checkpoint_path):
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         print("...existing model loaded")
+        max_test_f1_score = getattr(checkpoint_path, "max_test_f1_score", 0)
     except Exception as e:
         print("...loading failed")
         print(f"During loading the existing model, the following exception occured: \n{e}")
         print("The execution will continue anyway")
+        max_test_f1_score = 0
+    return max_test_f1_score
 
 
 def confusion_matrix_from_existing_model(args, checkpoint_path):
@@ -107,16 +110,18 @@ def confusion_matrix_from_existing_model(args, checkpoint_path):
         y_pred[start_idx:start_idx+batch_size] = np.argmax(model(batch).detach().numpy(), axis=-1).reshape(-1,1).astype(np.int64)
     save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method=args.train)
 
+
 def train_model(args, model, ds_train, ds_test, criterion):
     checkpoint_path = args.checkpoint_path if getattr(args, "checkpoint_path", None) is not None else str("./checkpoint.pt")
     train_dataloader = DataLoader(ds_train, args.batch_size, shuffle=True)
     test_dataloader = DataLoader(ds_test, args.batch_size, shuffle=True)
     model = model.to(args.device)
     model = model.float()
-    history = dict(train=[], train_f1=[], eval_f1=[], eval=[], max_test_f1_score=0)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    max_test_f1_score = 0
     if getattr(args, "load_model", False):
-        load_existing_model(model, optimizer, checkpoint_path)
+        max_test_f1_score = load_existing_model(model, optimizer, checkpoint_path)
+    history = dict(train=[], train_f1=[], eval_f1=[], eval=[], max_test_f1_score=max_test_f1_score)
     for epoch in range(args.epochs):
         model = model.train()
         epoch_train_losses = list()
@@ -164,7 +169,8 @@ def train_model(args, model, ds_train, ds_test, criterion):
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss
+                'loss': loss,
+                'max_test_f1_score': mean_test_f1_score
             }, checkpoint_path)
             history['max_test_f1_score'] = mean_test_f1_score
     return model, history
