@@ -4,12 +4,12 @@
   "epochs": 100,
   "num_layers": 4,
   "sequence_length": 128,
-  "lr": 1e-3,
+  "lr": 5e-4,
   "batch_size": 64,
   "input_size": 801,
   "hidden_size": 150,
   "n_classes": 11,
   "train": "lstm",
-  "dropout": 0.25,
+  "dropout": 0.2,
   "load_model": "False"
 }
