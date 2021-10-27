@@ -3,8 +3,15 @@ from utils.dataset import MusicDataset, stratified_split, check_classes
 from models import lstm_model, ae
 from torch import nn, optim
 import torch
+import os
+
 import numpy as np
 from sklearn.metrics import f1_score
+from utils.feature_extractor import dataset_preprocessor
+from sklearn.svm import LinearSVC
+from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
+from sklearn.metrics import precision_score, f1_score
+
 
 
 # TODO - think about a train_wrapper (automatically select the model to be trained)
@@ -32,8 +39,24 @@ def train(args):
     if choice == "ae":
         print("\t TRAINING AUTOENCODER...")
         train_ae(args)
+
     if choice == "svm":
-        raise NotImplementedError("Implement train_svm")
+        print("\t TRAINING SVM...")
+        dataset_path = args.dataset_path
+        # generate the dataset, if it is not already there
+        if len(os.listdir(args.features_dataset_path)) == 0:
+            data, labels = dataset_preprocessor(dataset_path, normalize_amplitude=True, normalize_features=False, output_path=args.features_dataset_path)
+        else:
+            data = np.load(os.path.join(args.features_dataset_path,'out_dataset.npy'))
+            labels = np.load(os.path.join(args.features_dataset_path,'out_labels.npy'))
+        # train the svm model
+        precision_per_classes, f1_score = train_svm(data, labels)
+
+
+
+
+
+
     if choice == "cnn":
         model = None
         ds = MusicDataset(args=args)
@@ -217,3 +240,30 @@ def train_lstm(args):
             mean_test_loss = np.mean(epoch_test_losses)
             history['val'].append(mean_test_loss)
         print(f"Epoch: {epoch}, \t train loss: {mean_train_loss}, \t test loss: {mean_test_loss}")
+
+
+
+def train_svm(data, labels, stratified = True):
+
+    flattened_data = np.array([data_matrix.flatten() for data_matrix in data])
+
+    if stratified:
+        sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=7)
+        for train_idx, test_idx in sss.split(flattened_data, labels):
+            X_train, X_test = flattened_data[train_idx], flattened_data[test_idx]
+            Y_train, Y_test = labels[train_idx], labels[test_idx]
+    else:
+        X_train, X_test, Y_train, Y_test = train_test_split(flattened_data, labels, test_size=0.2, random_state=7)
+
+    model = LinearSVC(C=0.0000005, dual=False, verbose=1, class_weight='balanced')
+    model.fit(X_train, Y_train)
+    y_pred = model.predict(X_test)
+
+    print('precision score (for each of the 11 classes): ')
+    print(precision_score(Y_test, y_pred, average=None))
+    print('f1 score: ')
+    print(f1_score(Y_test, y_pred, average='weighted'))
+
+    print('finished')
+
+    return precision_score(Y_test, y_pred, average=None), f1_score(Y_test, y_pred, average='weighted')
