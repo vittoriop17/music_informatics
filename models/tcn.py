@@ -26,7 +26,7 @@ class TemporalBlock(nn.Module):
         self.chomp2 = Chomp1d(padding)
         self.relu2 = nn.ReLU()
         self.dropout2 = nn.Dropout(dropout)
-        self.maxpool2 = nn.MaxPool1d(kernel_size=maxpool_kernel)
+        self.maxpool2 = nn.MaxPool1d(kernel_size=maxpool_kernel, stride=1)
         self.net = nn.Sequential(self.conv1, self.chomp1, self.relu1, self.dropout1,
                                  self.conv2, self.chomp2, self.relu2, self.dropout2,
                                  self.maxpool2)
@@ -42,7 +42,7 @@ class TemporalBlock(nn.Module):
 
     def forward(self, x):
         out = self.net(x)
-        res = x if self.downsample is None else self.downsample(x)
+        res = self.maxpool2(x) if self.downsample is None else self.maxpool2(self.downsample(x))
         return self.relu(out + res)
 
 
