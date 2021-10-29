@@ -27,10 +27,10 @@ class TemporalBlock(nn.Module):
         self.chomp2 = Chomp1d(padding)
         self.relu2 = nn.ReLU()
         self.dropout2 = nn.Dropout(dropout)
-        self.maxpool2 = nn.MaxPool1d(kernel_size=maxpool_kernel)
+        self.avg_pool2 = nn.AvgPool1d(kernel_size=maxpool_kernel)
         self.net = nn.Sequential(self.conv1, self.chomp1, self.relu1, self.dropout1,
                                  self.conv2, self.chomp2, self.relu2, self.dropout2,
-                                 self.maxpool2)
+                                 self.avg_pool2)
         self.downsample = nn.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
         self.relu = nn.ReLU()
         self.init_weights()
@@ -43,7 +43,7 @@ class TemporalBlock(nn.Module):
 
     def forward(self, x):
         out = self.net(x)
-        res = self.maxpool2(x) if self.downsample is None else self.maxpool2(self.downsample(x))
+        res = self.avg_pool2(x) if self.downsample is None else self.avg_pool2(self.downsample(x))
         return self.relu(out + res)
 
 
@@ -73,13 +73,13 @@ class TemporalConvNet(nn.Module):
 
 
 class ClassificationTCN(nn.Module):
-    def __init__(self, args, num_inputs=2, num_channels=[2, 4, 8, 16, 32], kernel_size=2):
+    def __init__(self, args, num_inputs=2, num_channels=[4, 8, 16, 32, 64], kernel_size=2):
         super(ClassificationTCN, self).__init__()
         self.tcn = TemporalConvNet(num_inputs, num_channels, kernel_size, args.dropout)
         self.output_size = self.tcn.f_original_input(args.input_size)
         self.lstm = nn.LSTM(input_size=self.output_size,
                             hidden_size=args.hidden_size,
-                            num_layers=2,
+                            num_layers=args.num_layers,
                             batch_first=True,
                             device=args.device,
                             dropout=args.dropout)
