@@ -51,6 +51,7 @@ class TemporalConvNet(nn.Module):
     def __init__(self, num_inputs=1, num_channels=[2, 4, 8, 16, 32, 64], kernel_size=2, dropout=0.2, avgpool_kernel=2):
         super(TemporalConvNet, self).__init__()
         layers = []
+        self.avgpool_kernel = avgpool_kernel
         self.num_levels = len(num_channels)
         for i in range(self.num_levels):
             dilation_size = 2 ** i
@@ -64,7 +65,7 @@ class TemporalConvNet(nn.Module):
     def f_original_input(self, input_size):
         # evaluate the output size after TemporalBLock dimensionality reduction,
         # given the length of the input (input_size)
-        all_sizes = [np.floor(input_size/(3**lev)).astype(np.int64) for lev in range(1, self.num_levels+1)]
+        all_sizes = [np.floor(input_size/(self.avgpool_kernel**lev)).astype(np.int64) for lev in range(1, self.num_levels+1)]
         return all_sizes[-1]
 
     def forward(self, x):
