@@ -40,7 +40,7 @@ class PreProcessNet(Module):
         self.conv1_3_out_size = check_conv1d_out_dim(self.down_sampling_3_out_size, 7, 0, 4, 2)
         self.down_sampling_4 = DownSamplingBLock(args, channels=32 * self.in_channels, dilation=1, stride=2)
         self.down_sampling_4_out_size = check_conv1d_out_dim(self.conv1_3_out_size, 3, 0, 2, 1)
-        self.num_sequences = 128
+        self.num_sequences = 96
         self.conv1_4 = Conv1d(in_channels=32 * self.in_channels, out_channels=self.num_sequences, kernel_size=12, stride=4, dilation=1)
         # remember: the following instr is logically correct, since the tensor must be TRANSPOSED before passing through the lstm module!
         # the input_size argument of LSTM is equal to the out_channels argument of the last convolution (conv1_3),
@@ -79,7 +79,7 @@ class ClassificationNet(Module):
         self.relu = ReLU()
         # dropout is set to 0 if args.dropout does not exist
         self.dropout = Dropout(p=getattr(args, "dropout", 0))
-        self.linear_1 = Linear(in_features=num_sequences * args.hidden_size, out_features=250, device=args.device)
+        self.linear_1 = Linear(in_features=num_sequences * args.hidden_size, out_features=300, device=args.device)
         self.batch_1 = BatchNorm1d(num_features=250, device=args.device)
         self.intro = Sequential(
             self.dropout,
@@ -88,35 +88,34 @@ class ClassificationNet(Module):
             self.relu,
             self.dropout
         )
-        self.linear_2_left = Linear(in_features=250, out_features=100, device=args.device)
-        self.batch_2_left = BatchNorm1d(num_features=100, device=args.device)
-        self.left = Sequential(
-            self.linear_2_left,
-            self.batch_2_left,
+        self.linear_2 = Linear(in_features=250, out_features=100, device=args.device)
+        self.batch_2 = BatchNorm1d(num_features=100, device=args.device)
+        self.middle = Sequential(
+            self.linear_2,
+            self.batch_2,
             self.relu,
             self.dropout
         )
-        self.linear_2_right = Linear(in_features=250, out_features=100, device=args.device)
-        self.batch_2_right = BatchNorm1d(num_features=100, device=args.device)
-        self.right = Sequential(
-            self.linear_2_right,
-            self.batch_2_right,
-            self.relu,
-            self.dropout
-        )
+        # self.linear_2_right = Linear(in_features=250, out_features=100, device=args.device)
+        # self.batch_2_right = BatchNorm1d(num_features=100, device=args.device)
+        # self.right = Sequential(
+        #     self.linear_2_right,
+        #     self.batch_2_right,
+        #     self.relu,
+        #     self.dropout
+        # )
         self.linear_3 = Linear(in_features=100, out_features=args.n_classes, device=args.device)
         self.end = Sequential(
             self.linear_3,
-            self.dropout
         )
         self.softmax = Softmax()
 
     def forward(self, x: torch.Tensor):
         x = torch.flatten(x, start_dim=1)
         x_intro = self.intro(x)
-        x_left = self.left(x_intro)
-        x_right = self.right(x_intro)
-        x_end = self.end(x_left + x_right)
+        x_middle = self.middle(x_intro)
+        # x_right = self.right(x_intro)
+        x_end = self.end(x_middle)
         return self.softmax(x_end)
 
 
