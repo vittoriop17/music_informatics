@@ -1,6 +1,6 @@
 from torch.utils.data import DataLoader, random_split
 from utils.dataset import MusicDataset, stratified_split, check_classes
-from models import lstm_model, ae
+from models import lstm_model, tcn
 from torch import nn, optim
 import torch
 import os
@@ -15,7 +15,7 @@ from sklearn.metrics import precision_score, f1_score
 
 
 def train(args):
-    options = ["lstm", "svm", "cnn"]
+    options = ["lstm", "svm", "cnn", "tcn"]
     choice = getattr(args, "train", None)
     if choice is None:
         raise Exception(f"Argument not found! Please insert a valid argument for 'train' option {options}")
@@ -29,13 +29,16 @@ def train(args):
         model = lstm_model.InstrumentClassificationNet(args)
         ds = MusicDataset(args=args)
         ds_train, ds_test = stratified_split(ds, args, 0.8)
-        # len_ds = len(ds)
-        # len_ds_train = int(0.7 * len_ds)
-        # ds_train, ds_test = random_split(ds, [len_ds_train, len_ds - len_ds_train], torch.Generator().manual_seed(42))
         criterion = nn.BCEWithLogitsLoss()
         print("\t TRAINING LSTM MODEL...")
         model, history = train_model(args, model, ds_train, ds_test, criterion)
-
+    if choice == "tcn":
+        model = tcn.ClassificationTCN(args)
+        ds = MusicDataset(args)
+        ds_train, ds_test = stratified_split(ds, args, 0.8)
+        criterion = nn.BCEWithLogitsLoss()
+        print("\t TRAINING TCN MODEL...")
+        model, history = train_model(args, model, ds_train, ds_test, criterion)
     if choice == "svm":
         print("\t TRAINING SVM...")
         dataset_path = args.dataset_path
@@ -208,4 +211,11 @@ def train_svm(data, labels, stratified = True):
 if __name__=='__main__':
     args = upload_args("configuration.json")
     setattr(args,"device","cpu")
-    confusion_matrix_from_existing_model(args, checkpoint_path="checkpoints\\checkpoint_bad.pt")
+    checkpoint_path = "C:\\Users\\vitto\\Downloads\\checkpoint_0_358.pt"
+    # confusion_matrix_from_existing_model(args, checkpoint_path=checkpoint_path)
+    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    y_true = checkpoint["y_true"]
+    y_pred = checkpoint["y_pred"]
+    classes = ['cel', 'cla', 'flu', 'gac', 'gel', 'org', 'pia', 'sax', 'tru', 'vio', 'voi']
+    save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method="lstm")
+
