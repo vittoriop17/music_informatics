@@ -80,7 +80,7 @@ class ClassificationNet(Module):
         # dropout is set to 0 if args.dropout does not exist
         self.dropout = Dropout(p=getattr(args, "dropout", 0))
         self.linear_1 = Linear(in_features=num_sequences * args.hidden_size, out_features=300, device=args.device)
-        self.batch_1 = BatchNorm1d(num_features=250, device=args.device)
+        self.batch_1 = BatchNorm1d(num_features=300, device=args.device)
         self.intro = Sequential(
             self.dropout,
             self.linear_1,
