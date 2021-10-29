@@ -73,20 +73,26 @@ class TemporalConvNet(nn.Module):
 
 
 class ClassificationTCN(nn.Module):
-    def __init__(self, args, num_inputs=2, num_channels=[4, 8, 16, 32, 64, 128], kernel_size=2):
+    def __init__(self, args, num_inputs=2, num_channels=[2, 4, 8, 16, 32], kernel_size=2):
         super(ClassificationTCN, self).__init__()
         self.tcn = TemporalConvNet(num_inputs, num_channels, kernel_size, args.dropout)
         self.output_size = self.tcn.f_original_input(args.input_size)
-        self.fc = nn.Sequential(nn.Linear(in_features=num_channels[-1]*self.output_size, out_features=num_channels[-1]//2, device=args.device),
+        self.lstm = nn.LSTM(input_size=self.output_size,
+                            hidden_size=args.hidden_size,
+                            num_layers=2,
+                            batch_first=True,
+                            device=args.device,
+                            dropout=args.dropout)
+        self.fc = nn.Sequential(nn.Linear(in_features=num_channels[-1]*args.hidden_size, out_features=150, device=args.device),
                                 nn.Dropout(args.dropout),
-                                nn.BatchNorm1d(num_features=num_channels[-1]//2, device=args.device),
+                                nn.BatchNorm1d(num_features=150, device=args.device),
                                 nn.ReLU(),
-                                nn.Linear(in_features=num_channels[-1]//2, out_features=args.n_classes, device=args.device),
+                                nn.Linear(in_features=150, out_features=args.n_classes, device=args.device),
                                 nn.Softmax())
 
     def forward(self, x):
         x = self.tcn(x)
-        print(f"{x.shape}")
+        x, (_, _) = self.lstm(x)
         x = torch.flatten(x, start_dim=1)
         x = self.fc(x)
         return x
