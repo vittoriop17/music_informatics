@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn.utils import weight_norm
+import numpy as np
 
 
 class Chomp1d(nn.Module):
@@ -26,7 +27,7 @@ class TemporalBlock(nn.Module):
         self.chomp2 = Chomp1d(padding)
         self.relu2 = nn.ReLU()
         self.dropout2 = nn.Dropout(dropout)
-        self.maxpool2 = nn.MaxPool1d(kernel_size=maxpool_kernel, stride=1)
+        self.maxpool2 = nn.MaxPool1d(kernel_size=maxpool_kernel)
         self.net = nn.Sequential(self.conv1, self.chomp1, self.relu1, self.dropout1,
                                  self.conv2, self.chomp2, self.relu2, self.dropout2,
                                  self.maxpool2)
@@ -50,17 +51,22 @@ class TemporalConvNet(nn.Module):
     def __init__(self, num_inputs=1, num_channels=[2, 4, 8, 16, 32, 64], kernel_size=2, dropout=0.2):
         super(TemporalConvNet, self).__init__()
         layers = []
-        maxpool_kernel = 2
-        num_levels = len(num_channels)
-        for i in range(num_levels):
+        maxpool_kernel = 3
+        self.num_levels = len(num_channels)
+        for i in range(self.num_levels):
             dilation_size = 2 ** i
-            maxpool_kernel = 2 * maxpool_kernel
             in_channels = num_inputs if i == 0 else num_channels[i-1]
             out_channels = num_channels[i]
             layers += [TemporalBlock(in_channels, out_channels, kernel_size, stride=1, dilation=dilation_size,
                                      padding=(kernel_size-1) * dilation_size, dropout=dropout, maxpool_kernel=maxpool_kernel)]
-
+        # self.output_size = (num_channels[-1], self.f_original_input)
         self.network = nn.Sequential(*layers)
+
+    def f_original_input(self, input_size):
+        # evaluate the output size after TemporalBLock dimensionality reduction,
+        # given the length of the input (input_size)
+        all_sizes = [np.floor(input_size/lev).astype(np.int64) for lev in range(1, self.num_levels+1)]
+        return all_sizes[-1]
 
     def forward(self, x):
         return self.network(x)
@@ -70,7 +76,8 @@ class ClassificationTCN(nn.Module):
     def __init__(self, args, num_inputs=2, num_channels=[4, 8, 16, 32, 64, 128], kernel_size=2):
         super(ClassificationTCN, self).__init__()
         self.tcn = TemporalConvNet(num_inputs, num_channels, kernel_size, args.dropout)
-        self.fc = nn.Sequential(nn.Linear(in_features=num_channels[-1], out_features=num_channels[-1]//2, device=args.device),
+        self.output_size = self.tcn.f_original_input(args.input_size)
+        self.fc = nn.Sequential(nn.Linear(in_features=num_channels[-1]*self.output_size, out_features=num_channels[-1]//2, device=args.device),
                                 nn.Dropout(args.dropout),
                                 nn.BatchNorm1d(num_features=num_channels[-1]//2, device=args.device),
                                 nn.ReLU(),
@@ -80,6 +87,7 @@ class ClassificationTCN(nn.Module):
     def forward(self, x):
         x = self.tcn(x)
         print(f"{x.shape}")
+        x = torch.flatten(x, dim=1)
         x = self.fc(x)
         return x
 

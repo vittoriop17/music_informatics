@@ -6,7 +6,7 @@
   "sequence_length": 128,
   "lr": 5e-4,
   "batch_size": 64,
-  "input_size": 801,
+  "input_size": 132300,
   "hidden_size": 150,
   "n_classes": 11,
   "train": "tcn",
