@@ -13,7 +13,7 @@ class Chomp1d(nn.Module):
 
 
 class TemporalBlock(nn.Module):
-    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.2):
+    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.2, maxpool_kernel=2):
         super(TemporalBlock, self).__init__()
         self.conv1 = weight_norm(nn.Conv1d(n_inputs, n_outputs, kernel_size,
                                            stride=stride, padding=padding, dilation=dilation))
@@ -26,9 +26,10 @@ class TemporalBlock(nn.Module):
         self.chomp2 = Chomp1d(padding)
         self.relu2 = nn.ReLU()
         self.dropout2 = nn.Dropout(dropout)
-
+        self.maxpool2 = nn.MaxPool1d(kernel_size=maxpool_kernel)
         self.net = nn.Sequential(self.conv1, self.chomp1, self.relu1, self.dropout1,
-                                 self.conv2, self.chomp2, self.relu2, self.dropout2)
+                                 self.conv2, self.chomp2, self.relu2, self.dropout2,
+                                 self.maxpool2)
         self.downsample = nn.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
         self.relu = nn.ReLU()
         self.init_weights()
@@ -49,13 +50,15 @@ class TemporalConvNet(nn.Module):
     def __init__(self, num_inputs=1, num_channels=[2, 4, 8, 16, 32, 64], kernel_size=2, dropout=0.2):
         super(TemporalConvNet, self).__init__()
         layers = []
+        maxpool_kernel = 2
         num_levels = len(num_channels)
         for i in range(num_levels):
             dilation_size = 2 ** i
+            maxpool_kernel = 2 * maxpool_kernel
             in_channels = num_inputs if i == 0 else num_channels[i-1]
             out_channels = num_channels[i]
             layers += [TemporalBlock(in_channels, out_channels, kernel_size, stride=1, dilation=dilation_size,
-                                     padding=(kernel_size-1) * dilation_size, dropout=dropout)]
+                                     padding=(kernel_size-1) * dilation_size, dropout=dropout, maxpool_kernel=maxpool_kernel)]
 
         self.network = nn.Sequential(*layers)
 
@@ -76,6 +79,7 @@ class ClassificationTCN(nn.Module):
 
     def forward(self, x):
         x = self.tcn(x)
+        print(f"{x.shape}")
         x = self.fc(x)
         return x
 
