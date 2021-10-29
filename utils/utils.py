@@ -25,6 +25,7 @@ def upload_args(file_path=os.path.join("configuration.json")):
     parser.add_argument("--config_file", required=False, type=str, help="Configuration file for additional parameters")
     parser.add_argument("--features_dataset_path", required=False, type=str, help="Path dataset used from the svm model")
     parser.add_argument("--dataset_path", required=False, type=str, help="Path dataset")
+    parser.add_argument("--test_dataset_path", required=False, type=str, help="Test dataset path")
     parser.add_argument("--checkpoint_path", required=False, type=str, help="Checkpoint path: for saving model parameters")
     parser.add_argument("--n_classes", required=False, type=int, help="Number of distinct instruments (classes)")
     parser.add_argument("--dropout", required=False, type=float, help="Dropout for fully connected layers")

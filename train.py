@@ -1,5 +1,5 @@
 from torch.utils.data import DataLoader, random_split
-from utils.dataset import MusicDataset, stratified_split, check_classes
+from utils.dataset import MusicDataset, stratified_split, TestDataset
 from models import lstm_model, tcn
 from torch import nn, optim
 import torch
@@ -20,7 +20,8 @@ def train(args):
     if choice is None:
         raise Exception(f"Argument not found! Please insert a valid argument for 'train' option {options}")
     if choice not in options:
-        raise Exception(f"Invalid argument! 'train' option must be associated to one of the following arguments: {options}")
+        raise Exception(
+            f"Invalid argument! 'train' option must be associated to one of the following arguments: {options}")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     setattr(args, "device", device)
     torch.device(device)
@@ -28,7 +29,9 @@ def train(args):
     if choice == "lstm":
         model = lstm_model.InstrumentClassificationNet(args)
         ds = MusicDataset(args=args)
-        ds_train, ds_test = stratified_split(ds, args, 0.8)
+        ds_train, ds_test = stratified_split(ds, args, 0.8) \
+            if not getattr(args, "only_train", False) \
+            else (ds, TestDataset(args, root_path=args.test_dataset_path))
         criterion = nn.BCEWithLogitsLoss()
         print("\t TRAINING LSTM MODEL...")
         model, history = train_model(args, model, ds_train, ds_test, criterion)
@@ -44,10 +47,11 @@ def train(args):
         dataset_path = args.dataset_path
         # generate the dataset, if it is not already there
         if len(os.listdir(args.features_dataset_path)) == 0:
-            data, labels = dataset_preprocessor(dataset_path, normalize_amplitude=True, normalize_features=False, output_path=args.features_dataset_path)
+            data, labels = dataset_preprocessor(dataset_path, normalize_amplitude=True, normalize_features=False,
+                                                output_path=args.features_dataset_path)
         else:
-            data = np.load(os.path.join(args.features_dataset_path,'out_dataset.npy'))
-            labels = np.load(os.path.join(args.features_dataset_path,'out_labels.npy'))
+            data = np.load(os.path.join(args.features_dataset_path, 'out_dataset.npy'))
+            labels = np.load(os.path.join(args.features_dataset_path, 'out_labels.npy'))
         # train the svm model
         precision_per_classes, f1_score = train_svm(data, labels)
     if choice == "cnn":
@@ -83,8 +87,8 @@ def load_existing_model(model, optimizer, checkpoint_path):
 def confusion_matrix_from_existing_model(args, checkpoint_path):
     checkpoint = torch.load(checkpoint_path, map_location=args.device)
     args_checkpoint = checkpoint['args']
-    setattr(args_checkpoint,"device", "cuda" if torch.cuda.is_available() else "cpu")
-    setattr(args_checkpoint,"dataset_path", args.dataset_path)
+    setattr(args_checkpoint, "device", "cuda" if torch.cuda.is_available() else "cpu")
+    setattr(args_checkpoint, "dataset_path", args.dataset_path)
     if args_checkpoint.train == 'lstm':
         model = lstm_model.InstrumentClassificationNet(args_checkpoint)
         model.load_state_dict(checkpoint['model_state_dict'])
@@ -93,21 +97,26 @@ def confusion_matrix_from_existing_model(args, checkpoint_path):
         batch_size = 64
         data_loader = DataLoader(ds_test, batch_size=batch_size, shuffle=True)
         classes = ds.ohe.get_feature_names()
-        classes = [classs.replace("x0_","") for classs in classes]
+        classes = [classs.replace("x0_", "") for classs in classes]
     else:
         return
     y_true = np.zeros((len(ds_test), 1))
     y_pred = np.zeros((len(ds_test), 1))
     for idx, (batch, y_true_batch) in enumerate(data_loader):
         batch_size = batch.shape[0]
-        start_idx = idx*batch.shape[0]
-        y_true[start_idx:start_idx+batch_size] = np.argmax(y_true_batch.detach().numpy(), axis=-1).reshape(-1,1).astype(np.int64)
-        y_pred[start_idx:start_idx+batch_size] = np.argmax(model(batch).detach().numpy(), axis=-1).reshape(-1,1).astype(np.int64)
+        start_idx = idx * batch.shape[0]
+        y_true[start_idx:start_idx + batch_size] = np.argmax(y_true_batch.detach().numpy(), axis=-1).reshape(-1,
+                                                                                                             1).astype(
+            np.int64)
+        y_pred[start_idx:start_idx + batch_size] = np.argmax(model(batch).detach().numpy(), axis=-1).reshape(-1,
+                                                                                                             1).astype(
+            np.int64)
     save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method=args_checkpoint.train)
 
 
 def train_model(args, model, ds_train, ds_test, criterion):
-    checkpoint_path = args.checkpoint_path if getattr(args, "checkpoint_path", None) is not None else str("./checkpoint.pt")
+    checkpoint_path = args.checkpoint_path if getattr(args, "checkpoint_path", None) is not None else str(
+        "./checkpoint.pt")
     train_dataloader = DataLoader(ds_train, args.batch_size, shuffle=True)
     test_dataloader = DataLoader(ds_test, args.batch_size, shuffle=True)
     model = model.to(args.device)
@@ -123,8 +132,8 @@ def train_model(args, model, ds_train, ds_test, criterion):
         y_true_all = np.zeros((len(ds_train), 1), dtype=np.int64)
         y_pred_all = y_true_all.copy()
         for batch_idx, (x, y_true) in enumerate(train_dataloader):
-            x = x.to(args.device)
-            y_true = y_true.to(args.device)
+            x = torch.squeeze(x.to(args.device).float(), dim=1)
+            y_true = y_true.to(args.device).float()
             optimizer.zero_grad()
             y_pred = model(x)
             y_pred = y_pred.to(args.device)
@@ -134,8 +143,10 @@ def train_model(args, model, ds_train, ds_test, criterion):
             epoch_train_losses.append(loss.item())
             # store ground truth and predicted targets. Necessary for f1 score of the whole TRAIN dataset
             start_idx = batch_idx * args.batch_size
-            y_true_all[start_idx:start_idx + x.shape[0]] = np.argmax(torch.squeeze(y_true, dim=1).detach().cpu().numpy(), axis=-1).reshape(-1,1)
-            y_pred_all[start_idx:start_idx + x.shape[0]] = np.argmax(y_pred.detach().cpu().numpy(), axis=-1).reshape(-1,1)
+            y_true_all[start_idx:start_idx + x.shape[0]] = np.argmax(
+                torch.squeeze(y_true, dim=1).detach().cpu().numpy(), axis=-1).reshape(-1, 1)
+            y_pred_all[start_idx:start_idx + x.shape[0]] = np.argmax(y_pred.detach().cpu().numpy(), axis=-1).reshape(-1,
+                                                                                                                     1)
 
         mean_train_loss = np.mean(epoch_train_losses)
         train_f1_score = f1_score(y_true=y_true_all, y_pred=y_pred_all, average="micro")
@@ -147,16 +158,18 @@ def train_model(args, model, ds_train, ds_test, criterion):
         model = model.eval()
         with torch.no_grad():
             for batch_idx, (x_test, y_true) in enumerate(test_dataloader):
-                x_test = x_test.to(args.device)
-                y_true = y_true.to(args.device)
+                x_test = torch.squeeze(x_test.to(args.device).float(), dim=1)
+                y_true = y_true.to(args.device).float()
                 y_pred = model(x_test)
                 y_pred = y_pred.to(args.device)
                 test_loss = criterion(y_pred, y_true.reshape(-1, args.n_classes))
                 # print({'epoch': epoch, 'batch_num': batch_num, 'loss': loss.item()})
                 # store ground truth and predicted targets. Necessary for f1 score of the whole TEST dataset
                 start_idx = batch_idx * args.batch_size
-                y_true_all[start_idx:start_idx + x_test.shape[0]] = np.argmax(torch.squeeze(y_true, dim=1).detach().cpu().numpy(), axis=-1).reshape(-1,1)
-                y_pred_all[start_idx:start_idx + x_test.shape[0]] = np.argmax(y_pred.detach().cpu().numpy(), axis=-1).reshape(-1,1)
+                y_true_all[start_idx:start_idx + x_test.shape[0]] = np.argmax(
+                    torch.squeeze(y_true, dim=1).detach().cpu().numpy(), axis=-1).reshape(-1, 1)
+                y_pred_all[start_idx:start_idx + x_test.shape[0]] = np.argmax(y_pred.detach().cpu().numpy(),
+                                                                              axis=-1).reshape(-1, 1)
                 epoch_test_losses.append(test_loss.item())
 
             mean_test_loss = np.mean(epoch_test_losses)
@@ -181,8 +194,7 @@ def train_model(args, model, ds_train, ds_test, criterion):
     return model, history
 
 
-def train_svm(data, labels, stratified = True):
-
+def train_svm(data, labels, stratified=True):
     flattened_data = np.array([data_matrix.flatten() for data_matrix in data])
 
     if stratified:
@@ -207,15 +219,14 @@ def train_svm(data, labels, stratified = True):
     return precision_score(Y_test, y_pred, average=None), f1_score(Y_test, y_pred, average='weighted')
 
 
-
-if __name__=='__main__':
+if __name__ == '__main__':
     args = upload_args("configuration.json")
-    setattr(args,"device","cpu")
-    checkpoint_path = "C:\\Users\\vitto\\Downloads\\checkpoint (5).pt"
+    setattr(args, "device", "cpu")
+    # checkpoint_path = "C:\\Users\\vitto\\Downloads\\checkpoint (5).pt"
+    checkpoint_path = "D:\\UNIVERSITA\\KTH\Semestre 1\\Music Informatics\\Labs\\Final_project\\checkpoints\\checkpoint.pt"
     # confusion_matrix_from_existing_model(args, checkpoint_path=checkpoint_path)
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     y_true = checkpoint["y_true"]
     y_pred = checkpoint["y_pred"]
     classes = ['cel', 'cla', 'flu', 'gac', 'gel', 'org', 'pia', 'sax', 'tru', 'vio', 'voi']
     save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method="lstm")
-

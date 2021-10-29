@@ -44,8 +44,8 @@ def create_mini_dataset(path_src, path_dest):
 
 class MusicDataset(Dataset):
     def __init__(self, args, skip=False):
-        self.check_args(args)
         self.args = args
+        self.dataset_path = args.dataset_path
         if skip:
             self.audio_file_paths, self.classes, self.nominal_classes = list(), list(), None
         else:
@@ -78,24 +78,9 @@ class MusicDataset(Dataset):
             return self.transform(waveform), self.classes[index].toarray()
         audio_samples = read_audio(audio_path)
         # audio_samples = self.add_padding(audio_samples)
-        audio_samples = (audio_samples - np.mean(audio_samples, axis=1, keepdims=True)) / np.std(audio_samples, axis=1, keepdims=True)
-        return torch.tensor(audio_samples, dtype=torch.float32), self.classes[index].toarray()
-
-    def add_padding(self, audio_samples):
-        mod = audio_samples.shape[1] % self.args.sequence_length
-        if mod != 0:
-            audio_samples = np.concatenate((audio_samples, np.zeros((2, self.args.sequence_length - mod))), axis=1)
-        # setattr(self.args, "input_size", int(len(audio_samples) / self.args.sequence_length))
-        return audio_samples
-
-    def check_args(self, args):
-        """
-        Check the presence of the following arguments:
-        -dataset_path
-        :param args: Namespace
-        """
-        assert hasattr(args, "dataset_path"), "Argument 'dataset_path' not found!"
-        assert hasattr(args, "sequence_length"), "Argument 'sequence_length' not found!"
+        audio_samples = (audio_samples - np.mean(audio_samples, axis=1, keepdims=True)) / np.std(audio_samples, axis=1,
+                                                                                                 keepdims=True)
+        return self.transform(audio_samples), self.classes[index].toarray()
 
     def get_audio_paths_n_classes(self):
         """
@@ -105,7 +90,7 @@ class MusicDataset(Dataset):
         tot_files = 0
         file_names = list()
         file_classes = list()
-        for (root, dirs, files) in os.walk(self.args.dataset_path, topdown=True):
+        for (root, dirs, files) in os.walk(self.dataset_path, topdown=True):
             base_class = os.path.basename(root)
             for file in files:
                 if not file.endswith(".wav"):
@@ -170,7 +155,7 @@ class CropAudio(object):
             random_start = np.random.randint(0, audio_len - num_tot_samples)
             end = random_start + num_tot_samples
             waveform = waveform[:, random_start:end]
-        return waveform
+        return torch.squeeze(waveform, dim=0)
 
     def __call__(self, waveform):
         return self._crop_audio(waveform)
@@ -188,8 +173,81 @@ def stratified_split(ds: MusicDataset, args, train_size=0.8):
     return ds_train, ds_test
 
 
-if __name__=='__main__':
+class TestDataset(MusicDataset):
+    def __init__(self, args, root_path=None, single_class=True, classes="all", split_dataset=False):
+        self.args = args
+        self.single_class = single_class
+        self.classes = classes if classes != 'all' else ['cel', 'cla', 'flu', 'gac', 'gel', 'org', 'pia', 'sax', 'tru',
+                                                         'vio', 'voi']
+        if split_dataset:
+            self.split_dataset()
+        super(TestDataset, self).__init__(args, skip=True)
+        self.dataset_path = root_path
+        self.audio_file_paths, self.classes, self.nominal_classes = self.get_audio_paths_n_classes()
+        self.transform = transforms.Compose([CropAudio(),
+                                             transforms.ToTensor()])
+
+
+    def split_dataset(self):
+        n_files_not_found = 0
+        one_inst_files, more_inst_files = (list(), list())
+        one_inst_class, more_inst_classes = (0, 0)
+        for (root, dirs, files) in os.walk(self.dataset_path, topdown=True):
+            base_class = os.path.basename(root)
+            for file in files:
+                if not file.endswith(".txt"):
+                    continue
+                wav_file_name = str(file).replace(".txt", ".wav")
+                wav_file_path = os.path.join(root, wav_file_name)
+                if not os.path.exists(wav_file_path):
+                    print(f"Audio file not found. No match for current metadata: {str(file)}")
+                    n_files_not_found += 1
+                    continue
+                file_path = os.path.join(root, file)
+                with open(file_path, "r") as fp:
+                    lines = fp.readlines()
+                n_lines = len(lines)
+                lines = list(map(lambda line: line.strip(), lines))
+                n_instruments = np.sum([1 for line in lines if line in self.classes])
+                if n_lines != n_instruments:
+                    print(f"Found invalid class in metadata. Audio file skipped {wav_file_path}")
+                    continue
+                if len(lines) == 1:
+                    base_dir = os.path.join(self.dataset_path, "one_instrument", lines[0])
+                    wav_file_path_dest = os.path.join(base_dir, wav_file_name)
+                    one_inst_files.append(wav_file_path_dest)
+                    one_inst_class += 1
+                else:
+                    classes = "_".join(lines)
+                    base_dir = os.path.join(self.dataset_path, "more_instrument", str(n_instruments), classes)
+                    wav_file_path_dest = os.path.join(base_dir, wav_file_name)
+                    more_inst_files.append(wav_file_path_dest)
+                    more_inst_classes += 1
+                try:
+                    os.makedirs(base_dir)
+                except Exception:
+                    pass
+                copyfile(wav_file_path, wav_file_path_dest)
+                os.remove(wav_file_path)
+        print(f"Number files with one instrument: {one_inst_class}")
+        print(f"Number files with more instruments: {more_inst_classes}")
+
+    def __getitem__(self, index):
+        if self.single_class:
+            return super(TestDataset, self).__getitem__(index)
+        else:
+            raise NotImplementedError()
+
+    def __len__(self):
+        if self.single_class:
+            return super(TestDataset, self).__len__()
+        else:
+            raise NotImplementedError()
+
+
+if __name__ == '__main__':
     print()
+    TestDataset(root_path="D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\Dataset\\test")
     # main_dir = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\dataset\\IRMAS-TrainingData"
     # dest_dir = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\mini_dataset"
     #
