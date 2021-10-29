@@ -211,7 +211,7 @@ def train_svm(data, labels, stratified = True):
 if __name__=='__main__':
     args = upload_args("configuration.json")
     setattr(args,"device","cpu")
-    checkpoint_path = "C:\\Users\\vitto\\Downloads\\checkpoint_0_358.pt"
+    checkpoint_path = "C:\\Users\\vitto\\Downloads\\checkpoint (4).pt"
     # confusion_matrix_from_existing_model(args, checkpoint_path=checkpoint_path)
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     y_true = checkpoint["y_true"]
