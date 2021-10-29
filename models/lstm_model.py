@@ -88,7 +88,7 @@ class ClassificationNet(Module):
             self.relu,
             self.dropout
         )
-        self.linear_2 = Linear(in_features=250, out_features=100, device=args.device)
+        self.linear_2 = Linear(in_features=300, out_features=100, device=args.device)
         self.batch_2 = BatchNorm1d(num_features=100, device=args.device)
         self.middle = Sequential(
             self.linear_2,
