@@ -65,7 +65,7 @@ class TemporalConvNet(nn.Module):
     def f_original_input(self, input_size):
         # evaluate the output size after TemporalBLock dimensionality reduction,
         # given the length of the input (input_size)
-        all_sizes = [np.floor(input_size/lev).astype(np.int64) for lev in range(1, self.num_levels+1)]
+        all_sizes = [np.floor(input_size/(3**lev)).astype(np.int64) for lev in range(1, self.num_levels+1)]
         return all_sizes[-1]
 
     def forward(self, x):
@@ -87,7 +87,7 @@ class ClassificationTCN(nn.Module):
     def forward(self, x):
         x = self.tcn(x)
         print(f"{x.shape}")
-        x = torch.flatten(x, dim=1)
+        x = torch.flatten(x, start_dim=1)
         x = self.fc(x)
         return x
 
