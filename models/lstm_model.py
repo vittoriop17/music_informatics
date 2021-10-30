@@ -40,11 +40,11 @@ class PreProcessNet(Module):
         self.conv1_3_out_size = check_conv1d_out_dim(self.down_sampling_3_out_size, 7, 0, 4, 2)
         self.down_sampling_4 = DownSamplingBLock(args, channels=32 * self.in_channels, dilation=1, stride=2)
         self.down_sampling_4_out_size = check_conv1d_out_dim(self.conv1_3_out_size, 3, 0, 2, 1)
-        self.num_sequences = 64
-        self.down_sampling_5 = DownSamplingBLock(args, channels=32 * self.in_channels, dilation=1, stride=3)
+        self.down_sampling_5 = DownSamplingBLock(args, channels=args.sequence_length, dilation=1, stride=3)
             # Conv1d(in_channels=32 * self.in_channels, out_channels=self.num_sequences, kernel_size=12, stride=4, dilation=1)
 
-        self.sequence_length = check_conv1d_out_dim(self.down_sampling_4_out_size, 3, 0, 3, 1)
+        self.sequence_length = args.sequence_length
+        self.num_sequences = check_conv1d_out_dim(self.down_sampling_4_out_size, 3, 0, 3, 1)
         self.down_sampling_net = Sequential(
             self.conv1_1,
             self.conv1_2,
