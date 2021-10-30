@@ -26,6 +26,7 @@ class PreProcessNet(Module):
         super(PreProcessNet, self).__init__()
         self.input_size = 132299
         self.in_channels = 2
+        self.sequence_length = args.sequence_length
         self.conv1_1 = Conv1d(in_channels=self.in_channels, out_channels=4*self.in_channels, kernel_size=3, dilation=1, device=args.device)
         self.conv1_1_out_size = check_conv1d_out_dim(self.input_size, 3, 0, 1, 1)
         self.conv1_2 = Conv1d(in_channels=4*self.in_channels, out_channels=16*self.in_channels, kernel_size=7, dilation=3, device=args.device)
@@ -40,11 +41,11 @@ class PreProcessNet(Module):
         self.conv1_3_out_size = check_conv1d_out_dim(self.down_sampling_3_out_size, 7, 0, 4, 2)
         self.down_sampling_4 = DownSamplingBLock(args, channels=32 * self.in_channels, dilation=1, stride=2)
         self.down_sampling_4_out_size = check_conv1d_out_dim(self.conv1_3_out_size, 3, 0, 2, 1)
-        self.down_sampling_5 = DownSamplingBLock(args, channels=args.sequence_length, dilation=1, stride=3)
+        self.down_sampling_5 = DownSamplingBLock(args, channels=32 * self.in_channels, dilation=1, stride=3)
+        self.down_sampling_5_out_size = check_conv1d_out_dim(self.down_sampling_4_out_size, 3, 0, 3, 1)
+        self.conv1_4 = Conv1d(in_channels=32*self.in_channels, out_channels=self.sequence_length, kernel_size=6, stride=3, dilation=3)
             # Conv1d(in_channels=32 * self.in_channels, out_channels=self.num_sequences, kernel_size=12, stride=4, dilation=1)
-
-        self.sequence_length = args.sequence_length
-        self.num_sequences = check_conv1d_out_dim(self.down_sampling_4_out_size, 3, 0, 3, 1)
+        self.num_sequences = check_conv1d_out_dim(self.down_sampling_5_out_size, 6, 0, 3, 3)
         self.down_sampling_net = Sequential(
             self.conv1_1,
             self.conv1_2,
@@ -53,7 +54,8 @@ class PreProcessNet(Module):
             self.down_sampling_3,
             self.conv1_3,
             self.down_sampling_4,
-            self.down_sampling_5
+            self.down_sampling_5,
+            self.conv1_4
         )
         self.lstm = LSTM(
             input_size=self.sequence_length,
@@ -67,7 +69,7 @@ class PreProcessNet(Module):
 
     def forward(self, x):
         x_down_sampled = self.down_sampling_net(x)
-        # x_down_sampled = torch.transpose(x_down_sampled, 1, 2)
+        x_down_sampled = torch.transpose(x_down_sampled, 1, 2)
         x_lstm, (h_lstm, c_lstm) = self.lstm(x_down_sampled)
         return x_lstm
 
