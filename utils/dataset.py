@@ -78,7 +78,7 @@ class MusicDataset(Dataset):
             return self.transform(waveform), self.classes[index].toarray()
         audio_samples = read_audio(audio_path)
         # audio_samples = self.add_padding(audio_samples)
-        audio_samples = (audio_samples - np.mean(audio_samples, axis=1, keepdims=True)) / np.std(audio_samples, axis=1,
+        audio_samples = (audio_samples - np.min(audio_samples, axis=1, keepdims=True)) / np.max(audio_samples, axis=1,
                                                                                                  keepdims=True)
         return self.transform(audio_samples), self.classes[index].toarray()
 
@@ -155,7 +155,7 @@ class CropAudio(object):
             random_start = np.random.randint(0, audio_len - num_tot_samples)
             end = random_start + num_tot_samples
             waveform = waveform[:, random_start:end]
-        return torch.squeeze(waveform, dim=0)
+        return waveform
 
     def __call__(self, waveform):
         return self._crop_audio(waveform)

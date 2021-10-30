@@ -1,5 +1,5 @@
 {
-  "dataset_path":  "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\Dataset\\IRMAS-TrainingData",
+  "dataset_path":  "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\mini_dataset",
   "features_dataset_path": "C:\\Users\\Prestige\\Desktop\\Paolo\\UNi\\ERASMUS\\KTH\\P1\\Music Informatics\\fp_musinfo\\music_informatics\\data",
   "epochs": 100,
   "num_layers": 3,
@@ -11,7 +11,7 @@
   "n_classes": 11,
   "train": "lstm",
   "dropout": 0.2,
-  "load_model": "False",
+  "load_model": "True",
   "checkpoint_path": "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\Final_project\\checkpoints\\checkpoint0_35.pt",
   "only_train": "True",
   "test_dataset_path": "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\Dataset\\test\\one_instrument"

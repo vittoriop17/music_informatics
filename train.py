@@ -71,7 +71,7 @@ def train(args):
 def load_existing_model(model, optimizer, checkpoint_path):
     try:
         print(f"Trying to load existing model from checkpoint @ {checkpoint_path}...")
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path, map_location="cuda" if torch.cuda.is_available() else "cpu")
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         print("...existing model loaded")
@@ -129,8 +129,9 @@ def train_model(args, model, ds_train, ds_test, criterion):
     for epoch in range(args.epochs):
         model = model.train()
         epoch_train_losses = list()
-        y_true_all = np.zeros((len(ds_train), 1), dtype=np.int64)
-        y_pred_all = y_true_all.copy()
+        y_true_all = torch.zeros((len(ds_train), 1), requires_grad=False)
+        # y_pred_all = y_true_all.copy()
+        y_pred_all = torch.zeros((len(ds_train), args.n_classes), requires_grad=False)
         for batch_idx, (x, y_true) in enumerate(train_dataloader):
             x = torch.squeeze(x.to(args.device).float(), dim=1)
             y_true = y_true.to(args.device).float()
@@ -143,18 +144,21 @@ def train_model(args, model, ds_train, ds_test, criterion):
             epoch_train_losses.append(loss.item())
             # store ground truth and predicted targets. Necessary for f1 score of the whole TRAIN dataset
             start_idx = batch_idx * args.batch_size
-            y_true_all[start_idx:start_idx + x.shape[0]] = np.argmax(
-                torch.squeeze(y_true, dim=1).detach().cpu().numpy(), axis=-1).reshape(-1, 1)
-            y_pred_all[start_idx:start_idx + x.shape[0]] = np.argmax(y_pred.detach().cpu().numpy(), axis=-1).reshape(-1,
-                                                                                                                     1)
+            y_true_all[start_idx:start_idx + x.shape[0]] = torch.argmax(torch.squeeze(y_true, dim=1), dim=-1).reshape(-1, 1)
+            # y_pred_all[start_idx:start_idx + x.shape[0]] = np.argmax(y_pred.detach().cpu().numpy(), axis=-1).reshape(-1, 1)
+            y_pred_all[start_idx:start_idx + x.shape[0], :] = y_pred
 
+        topk_train_accuracies = accuracy(y_pred_all, y_true_all, topk=(1, 2, 3))
         mean_train_loss = np.mean(epoch_train_losses)
-        train_f1_score = f1_score(y_true=y_true_all, y_pred=y_pred_all, average="micro")
+        train_f1_score = f1_score(y_true=y_true_all,
+                                  y_pred=np.argmax(y_pred_all.detach().cpu().numpy(), axis=-1),
+                                  average="micro")
         history['train'].append(mean_train_loss)
         history['train_f1'].append(train_f1_score)
         epoch_test_losses = list()
-        y_true_all = np.zeros((len(ds_test), 1), dtype=np.int64)
-        y_pred_all = y_true_all.copy()
+        y_true_all = torch.zeros((len(ds_train), 1), requires_grad=False)
+        # y_pred_all = y_true_all.copy()
+        y_pred_all = torch.zeros((len(ds_train), args.n_classes), requires_grad=False)
         model = model.eval()
         with torch.no_grad():
             for batch_idx, (x_test, y_true) in enumerate(test_dataloader):
@@ -166,19 +170,24 @@ def train_model(args, model, ds_train, ds_test, criterion):
                 # print({'epoch': epoch, 'batch_num': batch_num, 'loss': loss.item()})
                 # store ground truth and predicted targets. Necessary for f1 score of the whole TEST dataset
                 start_idx = batch_idx * args.batch_size
-                y_true_all[start_idx:start_idx + x_test.shape[0]] = np.argmax(
-                    torch.squeeze(y_true, dim=1).detach().cpu().numpy(), axis=-1).reshape(-1, 1)
-                y_pred_all[start_idx:start_idx + x_test.shape[0]] = np.argmax(y_pred.detach().cpu().numpy(),
-                                                                              axis=-1).reshape(-1, 1)
+                y_true_all[start_idx:start_idx + x_test.shape[0]] = torch.argmax(
+                    torch.squeeze(y_true, dim=1), dim=-1).reshape(-1, 1)
+                y_pred_all[start_idx:start_idx + x_test.shape[0], :] = y_pred
                 epoch_test_losses.append(test_loss.item())
 
             mean_test_loss = np.mean(epoch_test_losses)
-            eval_f1_score = f1_score(y_true=y_true_all, y_pred=y_pred_all, average='micro')
+            topk_test_accuracies = accuracy(y_pred_all, y_true_all, topk=(1,2,3))
+            y_pred_all = np.argmax(y_pred_all.detach().cpu().numpy(), axis=-1).reshape(-1, 1)
+            eval_f1_score = f1_score(y_true=y_true_all.detach().cpu().numpy(),
+                                     y_pred=y_pred_all,
+                                     average='micro')
             history['eval'].append(mean_test_loss)
             history['eval_f1'].append(eval_f1_score)
 
-        print(f"Epoch: {epoch}, \n train loss & f1-score: {mean_train_loss}, {train_f1_score}, "
-              f"\t test loss & f1-score: {mean_test_loss}, {eval_f1_score}")
+        print(f"Epoch: {epoch}, \n train: loss {mean_train_loss}, f1-score: {train_f1_score}, "
+              f"top1,top2,top3 acc: {list([float(topk) for topk in topk_train_accuracies])}"
+              f"\n test: loss {mean_test_loss}, f1-score: {eval_f1_score},"
+              f" top1,top2,top3 acc: {list([float(topk) for topk in topk_test_accuracies])}")
         if eval_f1_score > history['max_test_f1_score']:
             torch.save({
                 'epoch': epoch,
@@ -188,7 +197,9 @@ def train_model(args, model, ds_train, ds_test, criterion):
                 'max_test_f1_score': eval_f1_score,
                 'args': args,
                 'y_true': y_true_all,
-                'y_pred': y_pred_all
+                'y_pred': y_pred_all,
+                'topk_test_acc': topk_test_accuracies,
+                'topk_train_acc': topk_train_accuracies
             }, checkpoint_path)
             history['max_test_f1_score'] = eval_f1_score
     return model, history
@@ -217,6 +228,63 @@ def train_svm(data, labels, stratified=True):
     print('finished')
 
     return precision_score(Y_test, y_pred, average=None), f1_score(Y_test, y_pred, average='weighted')
+
+
+def accuracy(output: torch.Tensor, target: torch.Tensor, topk=(1,)):
+    """
+    Computes the accuracy over the k top predictions for the specified values of k
+    In top-5 accuracy you give yourself credit for having the right answer
+    if the right answer appears in your top five guesses.
+
+    ref:
+    - https://pytorch.org/docs/stable/generated/torch.topk.html
+    - https://discuss.pytorch.org/t/imagenet-example-accuracy-calculation/7840
+    - https://gist.github.com/weiaicunzai/2a5ae6eac6712c70bde0630f3e76b77b
+    - https://discuss.pytorch.org/t/top-k-error-calculation/48815/2
+    - https://stackoverflow.com/questions/59474987/how-to-get-top-k-accuracy-in-semantic-segmentation-using-pytorch
+
+    :param output: output is the prediction of the model e.g. scores, logits, raw y_pred before normalization or getting classes
+    :param target: target is the truth
+    :param topk: tuple of topk's to compute e.g. (1, 2, 5) computes top 1, top 2 and top 5.
+    e.g. in top 2 it means you get a +1 if your models's top 2 predictions are in the right label.
+    So if your model predicts cat, dog (0, 1) and the true label was bird (3) you get zero
+    but if it were either cat or dog you'd accumulate +1 for that example.
+    :return: list of topk accuracy [top1st, top2nd, ...] depending on your topk input
+    """
+    with torch.no_grad():
+        # ---- get the topk most likely labels according to your model
+        # get the largest k \in [n_classes] (i.e. the number of most likely probabilities we will use)
+        maxk = max(topk)  # max number labels we will consider in the right choices for out model
+        batch_size = target.size(0)
+
+        # get top maxk indicies that correspond to the most likely probability scores
+        # (note _ means we don't care about the actual top maxk scores just their corresponding indicies/labels)
+        _, y_pred = output.topk(k=maxk, dim=1)  # _, [B, n_classes] -> [B, maxk]
+        y_pred = y_pred.t()  # [B, maxk] -> [maxk, B] Expects input to be <= 2-D tensor and transposes dimensions 0 and 1.
+
+        # - get the credit for each example if the models predictions is in maxk values (main crux of code)
+        # for any example, the model will get credit if it's prediction matches the ground truth
+        # for each example we compare if the model's best prediction matches the truth. If yes we get an entry of 1.
+        # if the k'th top answer of the model matches the truth we get 1.
+        # Note: this for any example in batch we can only ever get 1 match (so we never overestimate accuracy <1)
+        target_reshaped = target.view(1, -1).expand_as(y_pred)  # [B] -> [B, 1] -> [maxk, B]
+        # compare every topk's model prediction with the ground truth & give credit if any matches the ground truth
+        correct = (y_pred == target_reshaped)  # [maxk, B] were for each example we know which topk prediction matched truth
+        # original: correct = pred.eq(target.view(1, -1).expand_as(pred))
+
+        # -- get topk accuracy
+        list_topk_accs = []  # idx is topk1, topk2, ... etc
+        for k in topk:
+            # get tensor of which topk answer was right
+            ind_which_topk_matched_truth = correct[:k]  # [maxk, B] -> [k, B]
+            # flatten it to help compute if we got it correct for each example in batch
+            flattened_indicator_which_topk_matched_truth = ind_which_topk_matched_truth.reshape(-1).float()  # [k, B] -> [kB]
+            # get if we got it right for any of our top k prediction for each example in batch
+            tot_correct_topk = flattened_indicator_which_topk_matched_truth.float().sum(dim=0, keepdim=True)  # [kB] -> [1]
+            # compute topk accuracy - the accuracy of the mode's ability to get it right within it's top k guesses/preds
+            topk_acc = tot_correct_topk / batch_size  # topk accuracy for entire batch
+            list_topk_accs.append(topk_acc)
+        return list_topk_accs  # list of topk accuracies for entire batch [topk1, topk2, ... etc]
 
 
 if __name__ == '__main__':
