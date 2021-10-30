@@ -156,9 +156,9 @@ def train_model(args, model, ds_train, ds_test, criterion):
         history['train'].append(mean_train_loss)
         history['train_f1'].append(train_f1_score)
         epoch_test_losses = list()
-        y_true_all = torch.zeros((len(ds_train), 1), requires_grad=False)
+        y_true_all = torch.zeros((len(ds_test), 1), requires_grad=False)
         # y_pred_all = y_true_all.copy()
-        y_pred_all = torch.zeros((len(ds_train), args.n_classes), requires_grad=False)
+        y_pred_all = torch.zeros((len(ds_test), args.n_classes), requires_grad=False)
         model = model.eval()
         with torch.no_grad():
             for batch_idx, (x_test, y_true) in enumerate(test_dataloader):
