@@ -31,17 +31,17 @@ class PreProcessNet(Module):
         self.conv1_1_out_size = check_conv1d_out_dim(self.input_size, 3, 0, 1, 1)
         self.conv1_2 = Conv1d(in_channels=4*self.in_channels, out_channels=16*self.in_channels, kernel_size=7, dilation=3, device=args.device)
         self.conv1_2_out_size = check_conv1d_out_dim(self.conv1_1_out_size, 7, 0, 1, 3)
-        self.down_sampling_1 = DownSamplingBLock(args, channels=16*self.in_channels, dilation=1, stride=2)
+        self.down_sampling_1 = ResConv1d(args, channels=16 * self.in_channels, dilation=1, stride=2)
         self.down_sampling_1_out_size = check_conv1d_out_dim(self.conv1_2_out_size, 3, 0, 2, 1)
-        self.down_sampling_2 = DownSamplingBLock(args, channels=16*self.in_channels, dilation=3, stride=2)
+        self.down_sampling_2 = ResConv1d(args, channels=16 * self.in_channels, dilation=3, stride=2)
         self.down_sampling_2_out_size = check_conv1d_out_dim(self.down_sampling_1_out_size, 3, 0, 2, 3)
-        self.down_sampling_3 = DownSamplingBLock(args, channels=16*self.in_channels, dilation=9, stride=2)
+        self.down_sampling_3 = ResConv1d(args, channels=16 * self.in_channels, dilation=9, stride=2)
         self.down_sampling_3_out_size = check_conv1d_out_dim(self.down_sampling_2_out_size, 3, 0, 2, 9)
         self.conv1_3 = Conv1d(in_channels=16*self.in_channels, out_channels=32*self.in_channels, kernel_size=7, stride=4, dilation=2)
         self.conv1_3_out_size = check_conv1d_out_dim(self.down_sampling_3_out_size, 7, 0, 4, 2)
-        self.down_sampling_4 = DownSamplingBLock(args, channels=32 * self.in_channels, dilation=1, stride=2)
+        self.down_sampling_4 = ResConv1d(args, channels=32 * self.in_channels, dilation=1, stride=2)
         self.down_sampling_4_out_size = check_conv1d_out_dim(self.conv1_3_out_size, 3, 0, 2, 1)
-        self.down_sampling_5 = DownSamplingBLock(args, channels=32 * self.in_channels, dilation=1, stride=3)
+        self.down_sampling_5 = ResConv1d(args, channels=32 * self.in_channels, dilation=1, stride=3)
         self.down_sampling_5_out_size = check_conv1d_out_dim(self.down_sampling_4_out_size, 3, 0, 3, 1)
         self.conv1_4 = Conv1d(in_channels=32*self.in_channels, out_channels=self.sequence_length, kernel_size=6, stride=3, dilation=3)
             # Conv1d(in_channels=32 * self.in_channels, out_channels=self.num_sequences, kernel_size=12, stride=4, dilation=1)
@@ -120,9 +120,9 @@ class ClassificationNet(Module):
         return self.softmax(x_end)
 
 
-class DownSamplingBLock(Module):
+class ResConv1d(Module):
     def __init__(self, args, channels, dilation, stride):
-        super(DownSamplingBLock, self).__init__()
+        super(ResConv1d, self).__init__()
         self.kernel_size = 3
         self.dilation = dilation
         self.stride = stride

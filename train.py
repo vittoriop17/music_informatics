@@ -102,15 +102,24 @@ def confusion_matrix_from_existing_model(args, checkpoint_path):
         return
     y_true = np.zeros((len(ds_test), 1))
     y_pred = np.zeros((len(ds_test), 1))
+    y_pred_all = np.zeros((len(ds_test), args.n_classes))
     for idx, (batch, y_true_batch) in enumerate(data_loader):
         batch_size = batch.shape[0]
         start_idx = idx * batch.shape[0]
         y_true[start_idx:start_idx + batch_size] = np.argmax(y_true_batch.detach().numpy(), axis=-1).reshape(-1,
                                                                                                              1).astype(
             np.int64)
-        y_pred[start_idx:start_idx + batch_size] = np.argmax(model(batch).detach().numpy(), axis=-1).reshape(-1,
+        pred_prob = model(batch)
+        y_pred[start_idx:start_idx + batch_size] = np.argmax(pred_prob.detach().numpy(), axis=-1).reshape(-1,
                                                                                                              1).astype(
             np.int64)
+        y_pred_all[start_idx:start_idx + batch_size, :] = pred_prob
+
+        # x = torch.squeeze(x.to(args.device).float(), dim=1)
+        # y_true = y_true.to(args.device).float()
+
+    topk_train_accuracies = accuracy(torch.tensor(y_pred_all), torch.tensor(y_true), topk=(1, 2, 3))
+
     save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method=args_checkpoint.train)
 
 
@@ -291,10 +300,10 @@ if __name__ == '__main__':
     args = upload_args("configuration.json")
     setattr(args, "device", "cpu")
     # checkpoint_path = "C:\\Users\\vitto\\Downloads\\checkpoint (5).pt"
-    checkpoint_path = "D:\\UNIVERSITA\\KTH\Semestre 1\\Music Informatics\\Labs\\Final_project\\checkpoints\\checkpoint.pt"
-    # confusion_matrix_from_existing_model(args, checkpoint_path=checkpoint_path)
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
-    y_true = checkpoint["y_true"]
-    y_pred = checkpoint["y_pred"]
-    classes = ['cel', 'cla', 'flu', 'gac', 'gel', 'org', 'pia', 'sax', 'tru', 'vio', 'voi']
-    save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method="lstm")
+    checkpoint_path = "D:\\UNIVERSITA\\KTH\Semestre 1\\Music Informatics\\Labs\\Final_project\\checkpoints\\checkpoint_0_478.pt"
+    confusion_matrix_from_existing_model(args, checkpoint_path=checkpoint_path)
+    # checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    # y_true = checkpoint["y_true"]
+    # y_pred = checkpoint["y_pred"]
+    # classes = ['cel', 'cla', 'flu', 'gac', 'gel', 'org', 'pia', 'sax', 'tru', 'vio', 'voi']
+    # save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method="lstm")
