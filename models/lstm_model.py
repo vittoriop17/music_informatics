@@ -47,11 +47,12 @@ class PreProcessNet(Module):
         # self.conv1_3_out_size = check_conv1d_out_dim(self.down_sampling_3_out_size, 7, 0, 1, 4)
         self.down_sampling_4 = DownSamplingBLock(args, channels=64 * self.in_channels, dilation=4, stride=1)
         self.down_sampling_4_out_size = check_conv1d_out_dim(self.down_sampling_3_out_size, 3, 0, 1, 4)
-        self.num_sequences = 64 * self.in_channels
-        self.down_sampling_5 = DownSamplingBLock(args, channels=64 * self.in_channels, dilation=5, stride=1)
+        # self.down_sampling_5 = DownSamplingBLock(args, channels=64 * self.in_channels, dilation=5, stride=1)
             # Conv1d(in_channels=32 * self.in_channels, out_channels=self.num_sequences, kernel_size=12, stride=4, dilation=1)
 
-        self.sequence_length = check_conv1d_out_dim(self.down_sampling_4_out_size, 3, 0, 1, 5)
+        # self.sequence_length = check_conv1d_out_dim(self.down_sampling_4_out_size, 3, 0, 1, 5)
+        self.num_sequences = 64 * self.in_channels
+        self.sequence_length = self.down_sampling_4_out_size
         self.down_sampling_net = Sequential(
             self.conv1_1,
             self.avg_pool1,
@@ -65,7 +66,8 @@ class PreProcessNet(Module):
             ReLU(),
             self.down_sampling_4,
             ReLU(),
-            self.down_sampling_5
+            # self.down_sampling_5,
+            # ReLU()
         )
         self.lstm = LSTM(
             input_size=self.sequence_length,
