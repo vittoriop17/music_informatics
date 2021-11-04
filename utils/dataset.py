@@ -11,35 +11,8 @@ from sklearn.model_selection import StratifiedShuffleSplit
 import torchaudio
 import torchaudio.transforms
 import matplotlib.pyplot as plt
-
-
-def check_classes(ds_train, ds_test):
-    cont_occ_train = np.zeros((1, 11))
-    cont_occ_test = np.zeros((1, 11))
-    for input_data, input_class in ds_train:
-        cont_occ_train += input_class
-    for _, input_class in ds_test:
-        cont_occ_test += input_class
-    print(cont_occ_train)
-    print(cont_occ_test)
-
-
-def read_audio(path):
-    rate, audio_array = read(path)
-    assert audio_array.shape[1] == 2, f"Audio channels is not 2. {audio_array.shape[1]} channel(s) found"
-    return audio_array.reshape(2, -1)
-
-
-def create_mini_dataset(path_src, path_dest):
-    for (root, dirs, files) in os.walk(path_src, topdown=True):
-        base_class = os.path.basename(root)
-        os.makedirs(os.path.join(path_dest, base_class))
-        for idx, file in enumerate(files):
-            if idx > 20:
-                break
-            if not file.endswith(".wav"):
-                continue
-            copyfile(os.path.join(root, file), os.path.join(path_dest, base_class, file))
+from statsmodels.tsa.stattools import adfuller
+# from utils import upload_args
 
 
 class MusicDataset(Dataset):
@@ -59,7 +32,11 @@ class MusicDataset(Dataset):
                 torchaudio.transforms.AmplitudeToDB(),
             ])
         else:
-            self.transform = transforms.Compose([transforms.ToTensor()])
+            self.transform = transforms.Compose([
+                transforms.ToTensor(),
+                ProcessChannels("avg"),
+                MinMaxScaler()
+            ])
 
     def __len__(self):
         return len(self.audio_file_paths)
@@ -78,8 +55,8 @@ class MusicDataset(Dataset):
             return self.transform(waveform), self.classes[index].toarray()
         audio_samples = read_audio(audio_path)
         # audio_samples = self.add_padding(audio_samples)
-        audio_samples = (audio_samples - np.min(audio_samples, axis=1, keepdims=True)) / np.max(audio_samples, axis=1,
-                                                                                                 keepdims=True)
+        # audio_samples = (audio_samples - np.min(audio_samples, axis=1, keepdims=True)) / np.max(audio_samples, axis=1,
+        #                                                                                          keepdims=True)
         return self.transform(audio_samples), self.classes[index].toarray()
 
     def get_audio_paths_n_classes(self):
@@ -114,65 +91,6 @@ class MusicDataset(Dataset):
             copyfile(audio_path, os.path.join(dest_path, audio_class, audio_name))
 
 
-class StdScaler(object):
-    def __init__(self):
-        pass
-
-    def _normalize(self, x):
-        x = (x - torch.mean(x)) / torch.std(x)
-        return x
-
-    def __call__(self, x):
-        return self._normalize(x)
-
-
-class ProcessChannels(object):
-
-    def __init__(self, mode):
-        self.mode = mode
-
-    def _modify_channels(self, waveform, mode):
-        if mode == 'avg':
-            new_audio = waveform.mean(axis=0) if waveform.ndim > 1 else waveform
-            new_audio = torch.unsqueeze(new_audio, dim=0)
-        else:
-            new_audio = waveform
-        return new_audio
-
-    def __call__(self, tensor):
-        return self._modify_channels(tensor, self.mode)
-
-
-class CropAudio(object):
-    def __init__(self, length=3, sample_rate=44100):
-        self.length = length
-        self.sample_rate = sample_rate
-
-    def _crop_audio(self, waveform):
-        num_tot_samples = self.length * self.sample_rate
-        audio_len = waveform.shape[1]
-        if audio_len > num_tot_samples:
-            random_start = np.random.randint(0, audio_len - num_tot_samples)
-            end = random_start + num_tot_samples
-            waveform = waveform[:, random_start:end]
-        return waveform
-
-    def __call__(self, waveform):
-        return self._crop_audio(waveform)
-
-
-def stratified_split(ds: MusicDataset, args, train_size=0.8):
-    sss = StratifiedShuffleSplit(1, train_size=train_size, random_state=42)
-    ds_train = MusicDataset(args, skip=True)
-    ds_test = MusicDataset(args, skip=True)
-    for train_idx, test_idx in sss.split(ds.audio_file_paths, ds.nominal_classes):
-        ds_train.audio_file_paths = np.array(ds.audio_file_paths)[train_idx]
-        ds_train.classes = ds.classes[train_idx, :]
-        ds_test.audio_file_paths = np.array(ds.audio_file_paths)[test_idx]
-        ds_test.classes = ds.classes[test_idx, :]
-    return ds_train, ds_test
-
-
 class TestDataset(MusicDataset):
     def __init__(self, args, root_path=None, single_class=True, classes="all", split_dataset=False):
         self.args = args
@@ -185,7 +103,7 @@ class TestDataset(MusicDataset):
         self.dataset_path = root_path
         self.audio_file_paths, self.classes, self.nominal_classes = self.get_audio_paths_n_classes()
         self.transform = transforms.Compose([CropAudio(),
-                                             transforms.ToTensor()])
+                                            self.transform])
 
 
     def split_dataset(self):
@@ -245,12 +163,135 @@ class TestDataset(MusicDataset):
             raise NotImplementedError()
 
 
+class StdScaler(object):
+    def __init__(self):
+        pass
+
+    def _normalize(self, x):
+        x = (x - torch.mean(x)) / torch.std(x)
+        return x
+
+    def __call__(self, x):
+        return self._normalize(x)
+
+
+class MinMaxScaler(object):
+    def __init__(self):
+        super(MinMaxScaler, self).__init__()
+
+    def _scaler(self, x: torch.tensor):
+        assert x.ndim > 1
+        return (x - torch.min(x)) / torch.max(x)
+
+    def __call__(self, x: torch.tensor):
+        return self._scaler(x)
+
+
+class ProcessChannels(object):
+
+    def __init__(self, mode):
+        self.mode = mode
+
+    def _modify_channels(self, waveform: torch.tensor, mode):
+        if mode == 'avg':
+            new_audio = torch.mean(waveform.float(), dim=1) if waveform.ndim > 1 else waveform
+            new_audio = torch.unsqueeze(new_audio, dim=0)
+        else:
+            new_audio = waveform
+        return new_audio
+
+    def __call__(self, tensor):
+        return self._modify_channels(tensor, self.mode)
+
+
+class CropAudio(object):
+    def __init__(self, length=3, sample_rate=44100):
+        self.length = length
+        self.sample_rate = sample_rate
+
+    def _crop_audio(self, waveform):
+        num_tot_samples = self.length * self.sample_rate
+        audio_len = waveform.shape[1]
+        if audio_len > num_tot_samples:
+            random_start = np.random.randint(0, audio_len - num_tot_samples)
+            end = random_start + num_tot_samples
+            waveform = waveform[:, random_start:end]
+        return waveform
+
+    def __call__(self, waveform):
+        return self._crop_audio(waveform)
+
+
+def stratified_split(ds: MusicDataset, args, train_size=0.8):
+    sss = StratifiedShuffleSplit(1, train_size=train_size, random_state=42)
+    ds_train = MusicDataset(args, skip=True)
+    ds_test = MusicDataset(args, skip=True)
+    for train_idx, test_idx in sss.split(ds.audio_file_paths, ds.nominal_classes):
+        ds_train.audio_file_paths = np.array(ds.audio_file_paths)[train_idx]
+        ds_train.classes = ds.classes[train_idx, :]
+        ds_test.audio_file_paths = np.array(ds.audio_file_paths)[test_idx]
+        ds_test.classes = ds.classes[test_idx, :]
+    return ds_train, ds_test
+
+
+def check_stationarity(ds: MusicDataset):
+    for i in range(20):
+        audio, _ = ds[i]
+        X = np.array(torch.squeeze(audio).detach().numpy())
+        X_left = X[0, :]
+        X_right = X[1, :]
+        result = adfuller(X_left)
+        print('ADF Statistic: %f' % result[0])
+        print('p-value: %f' % result[1])
+        print('Critical Values:')
+        for key, value in result[4].items():
+            print('\t%s: %.3f' % (key, value))
+        result = adfuller(X_right)
+        print('ADF Statistic: %f' % result[0])
+        print('p-value: %f' % result[1])
+        print('Critical Values:')
+        for key, value in result[4].items():
+            print('\t%s: %.3f' % (key, value))
+
+
+def check_classes(ds_train, ds_test):
+    cont_occ_train = np.zeros((1, 11))
+    cont_occ_test = np.zeros((1, 11))
+    for input_data, input_class in ds_train:
+        cont_occ_train += input_class
+    for _, input_class in ds_test:
+        cont_occ_test += input_class
+    print(cont_occ_train)
+    print(cont_occ_test)
+
+
+def read_audio(path):
+    rate, audio_array = read(path)
+    assert audio_array.shape[1] == 2, f"Audio channels is not 2. {audio_array.shape[1]} channel(s) found"
+    return audio_array.reshape(2, -1)
+
+
+def create_mini_dataset(path_src, path_dest):
+    for (root, dirs, files) in os.walk(path_src, topdown=True):
+        base_class = os.path.basename(root)
+        os.makedirs(os.path.join(path_dest, base_class))
+        for idx, file in enumerate(files):
+            if idx > 20:
+                break
+            if not file.endswith(".wav"):
+                continue
+            copyfile(os.path.join(root, file), os.path.join(path_dest, base_class, file))
+
+
 if __name__ == '__main__':
     print()
-    TestDataset(root_path="D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\Dataset\\test")
     # main_dir = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\dataset\\IRMAS-TrainingData"
-    # dest_dir = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\mini_dataset"
-    #
+    # dataset_path = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\mini_dataset"
+    # args = upload_args("..\\configuration.json")
+    # setattr(args,"dataset_path", dataset_path)
+    # ds = MusicDataset(args)
+    # check_stationarity(ds)
+    # TestDataset(root_path="D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\Dataset\\test")
     # # create_mini_dataset(main_dir, dest_dir)
     # cont = 0
     # tot_files = 0

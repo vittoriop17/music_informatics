@@ -93,34 +93,42 @@ def confusion_matrix_from_existing_model(args, checkpoint_path):
         model = lstm_model.InstrumentClassificationNet(args_checkpoint)
         model.load_state_dict(checkpoint['model_state_dict'])
         ds = MusicDataset(args=args_checkpoint)
-        _, ds_test = stratified_split(ds, args_checkpoint, 0.8)
+        ds_train, ds_test = stratified_split(ds, args_checkpoint, 0.8)
         batch_size = 64
-        data_loader = DataLoader(ds_test, batch_size=batch_size, shuffle=True)
+        test_data_loader = DataLoader(ds_test, batch_size=batch_size, shuffle=True)
+        train_data_loader = DataLoader(ds_train, batch_size=batch_size, shuffle=True)
         classes = ds.ohe.get_feature_names()
         classes = [classs.replace("x0_", "") for classs in classes]
     else:
         return
-    y_true = np.zeros((len(ds_test), 1))
-    y_pred = np.zeros((len(ds_test), 1))
-    y_pred_all = np.zeros((len(ds_test), args.n_classes))
-    for idx, (batch, y_true_batch) in enumerate(data_loader):
-        batch_size = batch.shape[0]
-        start_idx = idx * batch.shape[0]
-        y_true[start_idx:start_idx + batch_size] = np.argmax(y_true_batch.detach().numpy(), axis=-1).reshape(-1,
-                                                                                                             1).astype(
-            np.int64)
-        pred_prob = model(batch)
-        y_pred[start_idx:start_idx + batch_size] = np.argmax(pred_prob.detach().numpy(), axis=-1).reshape(-1,
-                                                                                                             1).astype(
-            np.int64)
-        y_pred_all[start_idx:start_idx + batch_size, :] = pred_prob
+    with torch.no_grad():
+        for i in range(2):
+            data_loader = train_data_loader if i == 0 else test_data_loader
+            name = "train set" if i == 0 else "test"
+            y_true = np.zeros((len(ds_train), 1)) if i==0 else np.zeros((len(ds_test), 1))
+            y_pred = np.zeros((len(ds_train), 1)) if i==0 else np.zeros((len(ds_test), 1))
+            y_pred_all = np.zeros((len(ds_train), args.n_classes)) if i==0 else np.zeros((len(ds_test), args.n_classes))
 
-        # x = torch.squeeze(x.to(args.device).float(), dim=1)
-        # y_true = y_true.to(args.device).float()
+            for idx, (batch, y_true_batch) in enumerate(data_loader):
+                batch_size = batch.shape[0]
+                batch = torch.squeeze(batch, dim=1).float()
+                y_true_batch = y_true_batch.float()
+                start_idx = idx * batch.shape[0]
+                y_true[start_idx:start_idx + batch_size] = np.argmax(y_true_batch.detach().numpy(), axis=-1).reshape(-1,
+                                                                                                                     1).astype(
+                    np.int64)
+                pred_prob = model(batch)
+                y_pred[start_idx:start_idx + batch_size] = np.argmax(pred_prob.detach().numpy(), axis=-1).reshape(-1,
+                                                                                                                     1).astype(
+                    np.int64)
+                y_pred_all[start_idx:start_idx + batch_size, :] = pred_prob
 
-    topk_train_accuracies = accuracy(torch.tensor(y_pred_all), torch.tensor(y_true), topk=(1, 2, 3))
+                # x = torch.squeeze(x.to(args.device).float(), dim=1)
+                # y_true = y_true.to(args.device).float()
 
-    save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method=args_checkpoint.train)
+            topk_train_accuracies = accuracy(torch.tensor(y_pred_all), torch.tensor(y_true), topk=(1, 2, 3))
+            print(f"name: {name}, accuracies: {topk_train_accuracies}")
+            save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method=args_checkpoint.train)
 
 
 def train_model(args, model, ds_train, ds_test, criterion):
