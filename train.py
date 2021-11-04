@@ -206,6 +206,9 @@ def train_model(args, model, ds_train, ds_test, criterion):
               f"\n test: loss {mean_test_loss}, f1-score: {eval_f1_score},"
               f" top1,top2,top3 acc: {list([float(topk) for topk in topk_test_accuracies])}")
         if eval_f1_score > history['max_test_f1_score']:
+            print(f"SAVING CURRENT MODEL ...")
+            print(f"Previous best F1-score: {history['max_test_f1_score']},"
+                  f"\tCurrent best F1-score: {eval_f1_score}")
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
