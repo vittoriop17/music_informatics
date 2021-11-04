@@ -1,5 +1,5 @@
 from torch.nn import Module
-from torch.nn.modules import LSTM, Linear, Softmax, Conv1d, MaxPool1d, Sequential, ReLU, BatchNorm1d, Dropout
+from torch.nn.modules import LSTM, Linear, Softmax, Conv1d, MaxPool1d, Sequential, ReLU, BatchNorm1d, Dropout, AvgPool1d
 import torch
 
 
@@ -29,33 +29,42 @@ class PreProcessNet(Module):
         # stride = 348: almost 70% overlap between contiguous windows.
         # the length of each window is represented by the kernel_size=1103
         # considering the sample rate, this window covers a number of samples in a temporal range of 25 ms
-        self.conv1_1 = Conv1d(in_channels=self.in_channels, out_channels=8*self.in_channels, kernel_size=1103, stride=348, dilation=1, device=args.device)
-        self.conv1_1_out_size = check_conv1d_out_dim(self.input_size, 1103, 0, 348, 1)
-        self.conv1_2 = Conv1d(in_channels=8*self.in_channels, out_channels=32*self.in_channels, kernel_size=7, dilation=1, device=args.device)
-        self.conv1_2_out_size = check_conv1d_out_dim(self.conv1_1_out_size, 7, 0, 1, 1)
-        self.down_sampling_1 = DownSamplingBLock(args, channels=32*self.in_channels, dilation=1, stride=1)
-        self.down_sampling_1_out_size = check_conv1d_out_dim(self.conv1_2_out_size, 3, 0, 1, 1)
-        self.down_sampling_2 = DownSamplingBLock(args, channels=32*self.in_channels, dilation=2, stride=1)
+        self.conv1_1 = Conv1d(in_channels=self.in_channels, out_channels=4*self.in_channels, kernel_size=509, stride=138, dilation=1, device=args.device)
+        self.conv1_1_out_size = check_conv1d_out_dim(self.input_size, 509, 0, 138, 1)
+        self.avg_pool1 = AvgPool1d(kernel_size=4, stride=2)
+        self.avg_pool1_out_size = check_conv1d_out_dim(self.conv1_1_out_size, 4, 0, 2, 1)
+        self.conv1_2 = Conv1d(in_channels=4*self.in_channels, out_channels=16*self.in_channels, kernel_size=11, device=args.device)
+        self.conv1_2_out_size = check_conv1d_out_dim(self.avg_pool1_out_size, 11, 0, 1, 1)
+        self.conv1_3 = Conv1d(in_channels=16*self.in_channels, out_channels=64*self.in_channels, kernel_size=7, dilation=1, device=args.device)
+        self.conv1_3_out_size = check_conv1d_out_dim(self.conv1_2_out_size, 7, 0, 1, 1)
+        self.down_sampling_1 = DownSamplingBLock(args, channels=64*self.in_channels, dilation=1, stride=2)
+        self.down_sampling_1_out_size = check_conv1d_out_dim(self.conv1_3_out_size, 3, 0, 2, 1)
+        self.down_sampling_2 = DownSamplingBLock(args, channels=64*self.in_channels, dilation=2, stride=1)
         self.down_sampling_2_out_size = check_conv1d_out_dim(self.down_sampling_1_out_size, 3, 0, 1, 2)
-        self.down_sampling_3 = DownSamplingBLock(args, channels=32*self.in_channels, dilation=3, stride=1)
+        self.down_sampling_3 = DownSamplingBLock(args, channels=64*self.in_channels, dilation=3, stride=1)
         self.down_sampling_3_out_size = check_conv1d_out_dim(self.down_sampling_2_out_size, 3, 0, 1, 3)
         # self.conv1_3 = Conv1d(in_channels=16*self.in_channels, out_channels=32*self.in_channels, kernel_size=7, stride=1, dilation=4)
         # self.conv1_3_out_size = check_conv1d_out_dim(self.down_sampling_3_out_size, 7, 0, 1, 4)
-        self.down_sampling_4 = DownSamplingBLock(args, channels=32 * self.in_channels, dilation=4, stride=1)
+        self.down_sampling_4 = DownSamplingBLock(args, channels=64 * self.in_channels, dilation=4, stride=1)
         self.down_sampling_4_out_size = check_conv1d_out_dim(self.down_sampling_3_out_size, 3, 0, 1, 4)
-        self.num_sequences = 32 * self.in_channels
-        self.down_sampling_5 = DownSamplingBLock(args, channels=32 * self.in_channels, dilation=5, stride=1)
+        self.num_sequences = 64 * self.in_channels
+        self.down_sampling_5 = DownSamplingBLock(args, channels=64 * self.in_channels, dilation=5, stride=1)
             # Conv1d(in_channels=32 * self.in_channels, out_channels=self.num_sequences, kernel_size=12, stride=4, dilation=1)
 
         self.sequence_length = check_conv1d_out_dim(self.down_sampling_4_out_size, 3, 0, 1, 5)
         self.down_sampling_net = Sequential(
             self.conv1_1,
+            self.avg_pool1,
             self.conv1_2,
+            self.conv1_3,
             self.down_sampling_1,
+            ReLU(),
             self.down_sampling_2,
+            ReLU(),
             self.down_sampling_3,
-            # self.conv1_3,
+            ReLU(),
             self.down_sampling_4,
+            ReLU(),
             self.down_sampling_5
         )
         self.lstm = LSTM(
