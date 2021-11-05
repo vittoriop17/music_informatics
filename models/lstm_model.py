@@ -145,7 +145,7 @@ class DownSamplingBLock(Module):
 class InstrumentClassificationNet(Module):
     def __init__(self, args):
         super(InstrumentClassificationNet, self).__init__()
-        self.preprocessing_net = PreProcessNet_stridepool(args)
+        self.preprocessing_net = PreProcessNet(args)
         self.classification_net = ClassificationNet(args, self.preprocessing_net.num_sequences)
 
     def forward(self, x):
