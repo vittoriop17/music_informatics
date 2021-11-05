@@ -1,7 +1,8 @@
 from torch.nn import Module
-from torch.nn.modules import LSTM, Linear, Softmax, Conv1d, MaxPool1d, Sequential, ReLU, BatchNorm1d, Dropout, AvgPool1d
+from torch.nn.modules import LSTM, Linear, Softmax, Conv1d, MaxPool1d, Sequential, ReLU, BatchNorm1d, Dropout, \
+    AvgPool1d, LeakyReLU
 import torch
-
+from models.extractor import PreProcessNet_v2
 
 # TODO - this model works with input sequences of fixed length!
 # modify the Dataset code in order to handle input of different length (normal case: 3 seconds audio)
@@ -10,15 +11,6 @@ def check_conv1d_out_dim(in_size, kernel, padding, stride, dilation):
     conv1d_out_size = (in_size + 2 * padding - dilation * (kernel - 1) - 1) / stride + 1
     assert conv1d_out_size % 1 == 0, "Something went wront. The output of conv1d should have an integer dimension. Not float"
     return int(conv1d_out_size)
-
-
-def find_stride(in_size, max_stride):
-    # N.B: in_size = original_in_size + 2*padding - dilation*(kernel_size-1) - 1
-    # see conv1d for explanation
-    for stride in range(2, max_stride+1):
-        if in_size % stride == 0:
-            return stride
-    return 1
 
 
 class PreProcessNet(Module):
@@ -133,16 +125,16 @@ class ClassificationNet(Module):
 
 
 class DownSamplingBLock(Module):
-    def __init__(self, args, channels, dilation, stride):
+    def __init__(self, args, channels, dilation, stride, kernel_size=3):
         super(DownSamplingBLock, self).__init__()
-        self.kernel_size = 3
+        self.kernel_size = kernel_size
         self.dilation = dilation
         self.stride = stride
         self.device = args.device
         self.left = Sequential(MaxPool1d(kernel_size=self.kernel_size, dilation=self.dilation, stride=stride),
                                ReLU())
         self.right = Sequential(Conv1d(in_channels=channels, out_channels=channels, kernel_size=1, device=self.device),
-                                Conv1d(in_channels=channels, out_channels=channels, kernel_size=3, dilation=self.dilation, stride=stride, device=self.device))
+                                Conv1d(in_channels=channels, out_channels=channels, kernel_size=self.kernel_size, dilation=self.dilation, stride=stride, device=self.device))
 
     def forward(self, x):
         x_left = self.left(x)
@@ -153,7 +145,7 @@ class DownSamplingBLock(Module):
 class InstrumentClassificationNet(Module):
     def __init__(self, args):
         super(InstrumentClassificationNet, self).__init__()
-        self.preprocessing_net = PreProcessNet(args)
+        self.preprocessing_net = PreProcessNet_v2(args)
         self.classification_net = ClassificationNet(args, self.preprocessing_net.num_sequences)
 
     def forward(self, x):
