@@ -75,7 +75,7 @@ def load_existing_model(model, optimizer, checkpoint_path):
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         print("...existing model loaded")
-        max_test_f1_score = getattr(checkpoint_path, "max_test_f1_score", 0)
+        max_test_f1_score = getattr(checkpoint, "max_test_f1_score", 0)
     except Exception as e:
         print("...loading failed")
         print(f"During loading the existing model, the following exception occured: \n{e}")
