@@ -76,12 +76,14 @@ def load_existing_model(model, optimizer, checkpoint_path):
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         print("...existing model loaded")
         max_test_f1_score = getattr(checkpoint, "max_test_f1_score", 0)
+        epoch = getattr(checkpoint, "epoch", 0)
     except Exception as e:
         print("...loading failed")
         print(f"During loading the existing model, the following exception occured: \n{e}")
         print("The execution will continue anyway")
         max_test_f1_score = 0
-    return max_test_f1_score
+        epoch = 0
+    return max_test_f1_score, epoch
 
 
 def confusion_matrix_from_existing_model(args, checkpoint_path):
@@ -131,7 +133,7 @@ def confusion_matrix_from_existing_model(args, checkpoint_path):
             save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method=args_checkpoint.train)
 
 
-def train_model(args, model, ds_train, ds_test, criterion):
+def train_model(args, model, ds_train, ds_test, criterion, start_epoch=0):
     checkpoint_path = args.checkpoint_path if getattr(args, "checkpoint_path", None) is not None else str(
         "./checkpoint.pt")
     train_dataloader = DataLoader(ds_train, args.batch_size, shuffle=True)
@@ -141,9 +143,9 @@ def train_model(args, model, ds_train, ds_test, criterion):
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     max_test_f1_score = 0
     if getattr(args, "load_model", False):
-        max_test_f1_score = load_existing_model(model, optimizer, checkpoint_path)
+        max_test_f1_score, start_epoch = load_existing_model(model, optimizer, checkpoint_path)
     history = dict(train=[], train_f1=[], eval_f1=[], eval=[], max_test_f1_score=max_test_f1_score)
-    for epoch in range(args.epochs):
+    for epoch in range(start_epoch, args.epochs):
         model = model.train()
         epoch_train_losses = list()
         y_true_all = torch.zeros((len(ds_train), 1), requires_grad=False)
