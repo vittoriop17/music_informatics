@@ -2,7 +2,7 @@ from torch.nn import Module
 from torch.nn.modules import LSTM, Linear, Softmax, Conv1d, MaxPool1d, Sequential, ReLU, BatchNorm1d, Dropout, \
     AvgPool1d, LeakyReLU
 import torch
-from models.extractor import PreProcessNet_v2
+from models.extractor import PreProcessNet_v2, PreProcessNet_stridepool
 
 # TODO - this model works with input sequences of fixed length!
 # modify the Dataset code in order to handle input of different length (normal case: 3 seconds audio)
@@ -145,7 +145,7 @@ class DownSamplingBLock(Module):
 class InstrumentClassificationNet(Module):
     def __init__(self, args):
         super(InstrumentClassificationNet, self).__init__()
-        self.preprocessing_net = PreProcessNet_v2(args)
+        self.preprocessing_net = PreProcessNet_stridepool(args)
         self.classification_net = ClassificationNet(args, self.preprocessing_net.num_sequences)
 
     def forward(self, x):
