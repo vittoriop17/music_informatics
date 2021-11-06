@@ -2,7 +2,7 @@ from torch.nn import Module
 from torch.nn.modules import LSTM, Linear, Softmax, Conv1d, MaxPool1d, Sequential, ReLU, BatchNorm1d, Dropout, \
     AvgPool1d, LeakyReLU
 import torch
-from models.extractor import PreProcessNet_v2, PreProcessNet_stridepool
+from models.extractor import PreProcessNet_stridepool
 
 # TODO - this model works with input sequences of fixed length!
 # modify the Dataset code in order to handle input of different length (normal case: 3 seconds audio)

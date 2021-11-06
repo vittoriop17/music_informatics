@@ -6,9 +6,6 @@ import torch
 import models.lstm_model as lstm_model
 
 
-# TODO - this model works with input sequences of fixed length!
-# modify the Dataset code in order to handle input of different length (normal case: 3 seconds audio)
-
 def check_conv1d_out_dim(in_size, kernel, padding, stride, dilation):
     conv1d_out_size = (in_size + 2 * padding - dilation * (kernel - 1) - 1) / stride + 1
     assert conv1d_out_size % 1 == 0, "Something went wront. The output of conv1d should have an integer dimension. Not float"
