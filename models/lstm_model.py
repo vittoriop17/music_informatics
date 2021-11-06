@@ -84,8 +84,8 @@ class ClassificationNet(Module):
         self.relu = ReLU()
         # dropout is set to 0 if args.dropout does not exist
         self.dropout = Dropout(p=getattr(args, "dropout", 0))
-        self.linear_1 = Linear(in_features=num_sequences * args.hidden_size, out_features=300, device=args.device)
-        self.batch_1 = BatchNorm1d(num_features=300, device=args.device)
+        self.linear_1 = Linear(in_features=num_sequences * args.hidden_size, out_features=200, device=args.device)
+        self.batch_1 = BatchNorm1d(num_features=200, device=args.device)
         self.intro = Sequential(
             self.dropout,
             self.linear_1,
@@ -93,7 +93,7 @@ class ClassificationNet(Module):
             self.relu,
             self.dropout
         )
-        self.linear_2 = Linear(in_features=300, out_features=100, device=args.device)
+        self.linear_2 = Linear(in_features=200, out_features=100, device=args.device)
         self.batch_2 = BatchNorm1d(num_features=100, device=args.device)
         self.middle = Sequential(
             self.linear_2,
@@ -145,7 +145,7 @@ class DownSamplingBLock(Module):
 class InstrumentClassificationNet(Module):
     def __init__(self, args):
         super(InstrumentClassificationNet, self).__init__()
-        self.preprocessing_net = PreProcessNet(args)
+        self.preprocessing_net = PreProcessNet_stridepool(args)
         self.classification_net = ClassificationNet(args, self.preprocessing_net.num_sequences)
 
     def forward(self, x):
