@@ -12,7 +12,6 @@ from sklearn.model_selection import StratifiedShuffleSplit
 # import torchaudio.transforms
 import matplotlib.pyplot as plt
 from statsmodels.tsa.stattools import adfuller
-# from utils import upload_args
 
 
 class MusicDataset(Dataset):
@@ -22,7 +21,7 @@ class MusicDataset(Dataset):
         if skip:
             self.audio_file_paths, self.classes, self.nominal_classes = list(), list(), None
         else:
-            self.audio_file_paths, self.classes, self.nominal_classes = self.get_audio_paths_n_classes()
+            self.audio_file_paths, self.classes, self.nominal_classes, self.num_audio_by_class = self.get_audio_paths_n_classes()
         if args.train == "cnn":
             self.transform = transforms.Compose([
                 ProcessChannels("avg"),
@@ -67,18 +66,23 @@ class MusicDataset(Dataset):
         tot_files = 0
         file_names = list()
         file_classes = list()
+        n_occurrences = dict()
         for (root, dirs, files) in os.walk(self.dataset_path, topdown=True):
             base_class = os.path.basename(root)
+            tot_audio_by_class = 0
             for file in files:
                 if not file.endswith(".wav"):
                     continue
                 tot_files += 1
+                tot_audio_by_class += 1
                 file_names.append(os.path.join(root, file))
                 file_classes.append(base_class)
+            if tot_audio_by_class!=0:
+                n_occurrences[base_class] = tot_audio_by_class
         print(f"Tot files: {tot_files}")
         self.ohe = OneHotEncoder()
         ohe_classes = self.ohe.fit_transform(X=np.array(file_classes).reshape(-1, 1))
-        return file_names, ohe_classes, file_classes
+        return file_names, ohe_classes, file_classes, n_occurrences
 
     def copy_files_to(self, dest_path):
         for audio_path in self.audio_file_paths:
@@ -101,7 +105,7 @@ class TestDataset(MusicDataset):
             self.split_dataset()
         super(TestDataset, self).__init__(args, skip=True)
         self.dataset_path = root_path
-        self.audio_file_paths, self.classes, self.nominal_classes = self.get_audio_paths_n_classes()
+        self.audio_file_paths, self.classes, self.nominal_classes, self.num_audio_by_class = self.get_audio_paths_n_classes()
         self.transform = transforms.Compose([CropAudio(),
                                             self.transform])
 
@@ -286,10 +290,18 @@ def create_mini_dataset(path_src, path_dest):
 if __name__ == '__main__':
     print()
     # main_dir = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\dataset\\IRMAS-TrainingData"
-    # dataset_path = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\mini_dataset"
+    # dataset_path = "D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\Dataset\\test\\one_instrument"
     # args = upload_args("..\\configuration.json")
-    # setattr(args,"dataset_path", dataset_path)
+    # setattr(args,"dataset_path", main_dir)
     # ds = MusicDataset(args)
+    # for k, v in ds.num_audio_by_class.items():
+    #     ds.num_audio_by_class[k] = float(v) / 6708 *100
+    # print(ds.num_audio_by_class)
+    # setattr(args, "dataset_path", dataset_path)
+    # ds = MusicDataset(args)
+    # for k, v in ds.num_audio_by_class.items():
+    #     ds.num_audio_by_class[k] = float(v) / 1236
+    # print(ds.num_audio_by_class)
     # check_stationarity(ds)
     # TestDataset(root_path="D:\\UNIVERSITA\\KTH\\Semestre 1\\Music Informatics\\Labs\\Dataset\\test")
     # # create_mini_dataset(main_dir, dest_dir)

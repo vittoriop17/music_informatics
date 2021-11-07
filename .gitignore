@@ -7,3 +7,5 @@ IMAGES
 checkpoint.pt
 discorso.txt
 checkpoints
+models/ae.py
+models/tcn.py

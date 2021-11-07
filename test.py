@@ -7,6 +7,32 @@ from utils.utils import upload_args
 from models.lstm_model import  InstrumentClassificationNet
 from sklearn.metrics import f1_score, confusion_matrix
 from utils.plot import plot_confusion_matrix, save_confusion_matrix
+from numpy import random
+from train import accuracy
+
+
+def random_predictor(args):
+    test_set = TestDataset(args, root_path=args.test_dataset_path)
+    dataloader_test = DataLoader(test_set, batch_size=args.batch_size)
+    y_true_all = np.zeros((len(test_set), 1))
+    y_pred_all = np.zeros((len(test_set), 1))
+    probs = np.zeros((len(test_set), args.n_classes))
+
+    for batch_idx, (x_test, y_true) in enumerate(dataloader_test):
+        y_true = y_true.to(args.device).float()
+        start_idx = batch_idx * args.batch_size
+        y_true_all[start_idx:start_idx + x_test.shape[0]] = np.argmax(
+            torch.squeeze(y_true, dim=1).detach().cpu().numpy(), axis=-1).reshape(-1, 1)
+        y_pred = random.random(size=(x_test.shape[0], args.n_classes))
+        y_pred_all[start_idx:start_idx + x_test.shape[0]] = np.argmax(y_pred, axis=-1).reshape(-1, 1)
+        probs[start_idx:start_idx + x_test.shape[0]] = y_pred
+    test_f1_score = f1_score(y_true=y_true_all, y_pred=y_pred_all, average='micro')
+    print(f"Test Micro f1 score: {test_f1_score}")
+    print(f"top 1,2,3 scores: {accuracy(torch.tensor(probs), torch.tensor(y_true_all), (1,2,3))}")
+    # cm = confusion_matrix(y_pred_classes=y_pred_all, y_true=y_true_all)
+    save_confusion_matrix(y_true=y_true_all, y_pred=y_pred_all, classes=list(test_set.ohe.categories_[0]),
+                          name_method="random_classifier")
+    # plot_confusion_matrix(cm, classes=['cel', 'cla', 'flu', 'gac', 'gel', 'org', 'pia', 'sax', 'tru', 'vio', 'voi'], title="Test Dataset Metrics (1 Instrument)")
 
 
 def test():
@@ -46,4 +72,6 @@ def test():
 
 
 if __name__=='__main__':
-    test()
+    args = upload_args(".\\configuration.json")
+    setattr(args, "device", "cpu")
+    random_predictor(args)
