@@ -3,12 +3,11 @@ import torch
 import numpy as np
 from torch.utils.data import DataLoader
 from utils.dataset import TestDataset
-from utils.utils import upload_args
+from utils.utils import upload_args, accuracy
 from models.lstm_model import  InstrumentClassificationNet
 from sklearn.metrics import f1_score, confusion_matrix
 from utils.plot import plot_confusion_matrix, save_confusion_matrix
 from numpy import random
-from train import accuracy
 
 
 def random_predictor(args):
@@ -74,4 +73,4 @@ def test():
 if __name__=='__main__':
     args = upload_args(".\\configuration.json")
     setattr(args, "device", "cpu")
-    random_predictor(args)
+    # random_predictor(args)

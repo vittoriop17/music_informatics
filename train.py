@@ -1,13 +1,13 @@
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 from utils.dataset import MusicDataset, stratified_split, TestDataset
 from models import lstm_model, tcn
 from torch import nn, optim
 import torch
 import os
 import numpy as np
-from sklearn.metrics import f1_score
-from utils.plot import save_confusion_matrix
-from utils.utils import upload_args
+from utils.plot import confusion_matrix_from_existing_model
+from utils.utils import upload_args, load_existing_model, accuracy
+from utils import plot
 from utils.feature_extractor import dataset_preprocessor
 from sklearn.svm import LinearSVC
 from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
@@ -66,71 +66,6 @@ def train(args):
         print("\t TRAINING CNN MODEL")
         raise NotImplementedError("Implement CNN network")
         model, history = train_model(args, model, ds_train, ds_test, criterion)
-
-
-def load_existing_model(model, optimizer, checkpoint_path):
-    try:
-        print(f"Trying to load existing model from checkpoint @ {checkpoint_path}...")
-        checkpoint = torch.load(checkpoint_path, map_location="cuda" if torch.cuda.is_available() else "cpu")
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        print("...existing model loaded")
-        max_test_f1_score = getattr(checkpoint, "max_test_f1_score", 0)
-        epoch = getattr(checkpoint, "epoch", 0)
-    except Exception as e:
-        print("...loading failed")
-        print(f"During loading the existing model, the following exception occured: \n{e}")
-        print("The execution will continue anyway")
-        max_test_f1_score = 0
-        epoch = 0
-    return max_test_f1_score, epoch
-
-
-def confusion_matrix_from_existing_model(args, checkpoint_path):
-    checkpoint = torch.load(checkpoint_path, map_location=args.device)
-    args_checkpoint = checkpoint['args']
-    setattr(args_checkpoint, "device", "cuda" if torch.cuda.is_available() else "cpu")
-    setattr(args_checkpoint, "dataset_path", args.dataset_path)
-    if args_checkpoint.train == 'lstm':
-        model = lstm_model.InstrumentClassificationNet(args_checkpoint)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        ds = MusicDataset(args=args_checkpoint)
-        ds_train, ds_test = stratified_split(ds, args_checkpoint, 0.8)
-        batch_size = 64
-        test_data_loader = DataLoader(ds_test, batch_size=batch_size, shuffle=True)
-        train_data_loader = DataLoader(ds_train, batch_size=batch_size, shuffle=True)
-        classes = ds.ohe.get_feature_names()
-        classes = [classs.replace("x0_", "") for classs in classes]
-    else:
-        return
-    with torch.no_grad():
-        for i in range(2):
-            data_loader = train_data_loader if i == 0 else test_data_loader
-            name = "train set" if i == 0 else "test"
-            y_true = np.zeros((len(ds_train), 1)) if i==0 else np.zeros((len(ds_test), 1))
-            y_pred = np.zeros((len(ds_train), 1)) if i==0 else np.zeros((len(ds_test), 1))
-            y_pred_all = np.zeros((len(ds_train), args.n_classes)) if i==0 else np.zeros((len(ds_test), args.n_classes))
-
-            for idx, (batch, y_true_batch) in enumerate(data_loader):
-                batch_size = batch.shape[0]
-                batch = torch.squeeze(batch, dim=1).float()
-                y_true_batch = y_true_batch.float()
-                start_idx = idx * batch.shape[0]
-                y_true[start_idx:start_idx + batch_size] = np.argmax(y_true_batch.detach().numpy(), axis=-1).reshape(-1,
-                                                                                                                     1).astype(
-                    np.int64)
-                pred_prob = model(batch)
-                y_pred[start_idx:start_idx + batch_size] = np.argmax(pred_prob.detach().numpy(), axis=-1).reshape(-1,
-                                                                                                                     1).astype(
-                    np.int64)
-                y_pred_all[start_idx:start_idx + batch_size, :] = pred_prob
-
-                # x = torch.squeeze(x.to(args.device).float(), dim=1)
-                # y_true = y_true.to(args.device).float()
-
-            topk_train_accuracies = accuracy(torch.tensor(y_pred_all), torch.tensor(y_true), topk=(1, 2, 3))
-            print(f"name: {name}, accuracies: {topk_train_accuracies}")
-            save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method=args_checkpoint.train)
 
 
 def train_model(args, model, ds_train, ds_test, criterion, start_epoch=0):
@@ -195,7 +130,7 @@ def train_model(args, model, ds_train, ds_test, criterion, start_epoch=0):
                 epoch_test_losses.append(test_loss.item())
 
             mean_test_loss = np.mean(epoch_test_losses)
-            topk_test_accuracies = accuracy(y_pred_all, y_true_all, topk=(1,2,3))
+            topk_test_accuracies = accuracy(y_pred_all, y_true_all, topk=(1, 2, 3))
             y_pred_all = np.argmax(y_pred_all.detach().cpu().numpy(), axis=-1).reshape(-1, 1)
             eval_f1_score = f1_score(y_true=y_true_all.detach().cpu().numpy(),
                                      y_pred=y_pred_all,
@@ -252,71 +187,13 @@ def train_svm(data, labels, stratified=True):
     return precision_score(Y_test, y_pred, average=None), f1_score(Y_test, y_pred, average='weighted')
 
 
-def accuracy(output: torch.Tensor, target: torch.Tensor, topk=(1,)):
-    """
-    Computes the accuracy over the k top predictions for the specified values of k
-    In top-5 accuracy you give yourself credit for having the right answer
-    if the right answer appears in your top five guesses.
-
-    ref:
-    - https://pytorch.org/docs/stable/generated/torch.topk.html
-    - https://discuss.pytorch.org/t/imagenet-example-accuracy-calculation/7840
-    - https://gist.github.com/weiaicunzai/2a5ae6eac6712c70bde0630f3e76b77b
-    - https://discuss.pytorch.org/t/top-k-error-calculation/48815/2
-    - https://stackoverflow.com/questions/59474987/how-to-get-top-k-accuracy-in-semantic-segmentation-using-pytorch
-
-    :param output: output is the prediction of the model e.g. scores, logits, raw y_pred before normalization or getting classes
-    :param target: target is the truth
-    :param topk: tuple of topk's to compute e.g. (1, 2, 5) computes top 1, top 2 and top 5.
-    e.g. in top 2 it means you get a +1 if your models's top 2 predictions are in the right label.
-    So if your model predicts cat, dog (0, 1) and the true label was bird (3) you get zero
-    but if it were either cat or dog you'd accumulate +1 for that example.
-    :return: list of topk accuracy [top1st, top2nd, ...] depending on your topk input
-    """
-    with torch.no_grad():
-        # ---- get the topk most likely labels according to your model
-        # get the largest k \in [n_classes] (i.e. the number of most likely probabilities we will use)
-        maxk = max(topk)  # max number labels we will consider in the right choices for out model
-        batch_size = target.size(0)
-
-        # get top maxk indicies that correspond to the most likely probability scores
-        # (note _ means we don't care about the actual top maxk scores just their corresponding indicies/labels)
-        _, y_pred = output.topk(k=maxk, dim=1)  # _, [B, n_classes] -> [B, maxk]
-        y_pred = y_pred.t()  # [B, maxk] -> [maxk, B] Expects input to be <= 2-D tensor and transposes dimensions 0 and 1.
-
-        # - get the credit for each example if the models predictions is in maxk values (main crux of code)
-        # for any example, the model will get credit if it's prediction matches the ground truth
-        # for each example we compare if the model's best prediction matches the truth. If yes we get an entry of 1.
-        # if the k'th top answer of the model matches the truth we get 1.
-        # Note: this for any example in batch we can only ever get 1 match (so we never overestimate accuracy <1)
-        target_reshaped = target.view(1, -1).expand_as(y_pred)  # [B] -> [B, 1] -> [maxk, B]
-        # compare every topk's model prediction with the ground truth & give credit if any matches the ground truth
-        correct = (y_pred == target_reshaped)  # [maxk, B] were for each example we know which topk prediction matched truth
-        # original: correct = pred.eq(target.view(1, -1).expand_as(pred))
-
-        # -- get topk accuracy
-        list_topk_accs = []  # idx is topk1, topk2, ... etc
-        for k in topk:
-            # get tensor of which topk answer was right
-            ind_which_topk_matched_truth = correct[:k]  # [maxk, B] -> [k, B]
-            # flatten it to help compute if we got it correct for each example in batch
-            flattened_indicator_which_topk_matched_truth = ind_which_topk_matched_truth.reshape(-1).float()  # [k, B] -> [kB]
-            # get if we got it right for any of our top k prediction for each example in batch
-            tot_correct_topk = flattened_indicator_which_topk_matched_truth.float().sum(dim=0, keepdim=True)  # [kB] -> [1]
-            # compute topk accuracy - the accuracy of the mode's ability to get it right within it's top k guesses/preds
-            topk_acc = tot_correct_topk / batch_size  # topk accuracy for entire batch
-            list_topk_accs.append(topk_acc)
-        return list_topk_accs  # list of topk accuracies for entire batch [topk1, topk2, ... etc]
-
-
 if __name__ == '__main__':
     args = upload_args("configuration.json")
     setattr(args, "device", "cpu")
     # checkpoint_path = "C:\\Users\\vitto\\Downloads\\checkpoint (5).pt"
-    checkpoint_path = "D:\\UNIVERSITA\\KTH\Semestre 1\\Music Informatics\\Labs\\Final_project\\checkpoints\\checkpoint_0_478.pt"
-    confusion_matrix_from_existing_model(args, checkpoint_path=checkpoint_path)
-    # checkpoint = torch.load(checkpoint_path, map_location="cpu")
-    # y_true = checkpoint["y_true"]
-    # y_pred = checkpoint["y_pred"]
-    # classes = ['cel', 'cla', 'flu', 'gac', 'gel', 'org', 'pia', 'sax', 'tru', 'vio', 'voi']
-    # save_confusion_matrix(y_true=y_true, y_pred=y_pred, classes=classes, name_method="lstm")
+    checkpoint_path = "D:\\UNIVERSITA\\KTH\Semestre 1\\Music Informatics\\Labs\\Final_project\\checkpoints\\checkpoint_FINAL.pt"
+    # confusion_matrix_from_existing_model(args, checkpoint_path=checkpoint_path)
+    # checkpoint = torch.load(checkpoint_path, map_location=args.device)
+    # classes = ['cel', 'cla', 'flu', 'gac', 'gel', 'org', 'pia', 'sax', 'tru',
+    #                                                      'vio', 'voi']
+    # plot.save_confusion_matrix(y_true=checkpoint['y_true'], y_pred=checkpoint['y_pred'], classes=classes, name_method='LSTM')
