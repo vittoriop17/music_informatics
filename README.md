@@ -46,7 +46,7 @@ This project aims to develop a machine-learning model capable of predicting the 
 For the sake of completeness, the results obtained with automatically extracted features (CNN+LSTM) and hand-crafted features (SVM) are compared with the results obtained with a random classifier, to show the effectiveness of both models.
 CNN + LSTM                 |  Random Classifier            |   SVM                     |
 :-------------------------:|:-----------------------------:|:-------------------------:|
-![](cnn_cm.png)            | ![](random_classifier_cm.png) | ![](svm_cm.png)           |
+![](cnn_cm.png)            | ![](random_classifier_cm.png) | ![](SVM_cm.png)           |
 
 
 ## Conclusion
